@@ -1,0 +1,2365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HabitNu · Web Test Generator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:     #0a0a0f; --bg2: #111118; --bg3: #1a1a24;
+    --border: #2a2a3a; --border2: #3a3a50;
+    --text:   #e8e8f0; --muted: #888899;
+    --accent: #7c6aff; --accent2: #b09aff;
+    --green:  #2dd4a0; --red: #ff5f6d; --amber: #ffb74d;
+    --mono:   'IBM Plex Mono', monospace;
+    --sans:   'Syne', sans-serif;
+  }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); overflow: hidden; }
+
+  .shell { display: grid; grid-template-columns: 260px 1fr; grid-template-rows: 56px 1fr; height: 100vh; }
+
+  /* Topbar */
+  .topbar { grid-column: 1/-1; background: var(--bg2); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; padding: 0 24px; }
+  .logo { font-size: 15px; font-weight: 800; letter-spacing: -.5px; color: var(--accent2); }
+  .logo span { color: var(--green); }
+  .tagline { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); margin-left: auto; }
+  .dot.on { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.5} }
+  .conn-label { font-size: 11px; font-family: var(--mono); color: var(--muted); }
+
+  /* Sidebar */
+  .sidebar { background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+  .sidebar-section { padding: 20px 16px 12px; }
+  .sidebar-title { font-size: 10px; font-family: var(--mono); color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 10px; }
+  .step { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; cursor: pointer; transition: background .15s; margin-bottom: 2px; }
+  .step:hover { background: var(--bg3); }
+  .step.active { background: var(--bg3); }
+  .step-num { width: 22px; height: 22px; border-radius: 50%; background: var(--border); color: var(--muted); font-size: 11px; font-weight: 600; font-family: var(--mono); display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .2s; }
+  .step.active .step-num { background: var(--accent); color: #fff; }
+  .step.done   .step-num { background: var(--green); color: #000; }
+  .step-label { font-size: 13px; font-weight: 600; }
+  .step.active .step-label { color: var(--accent2); }
+  .step.done   .step-label { color: var(--green); }
+  .captures-list { flex: 1; overflow-y: auto; padding: 0 16px 16px; }
+  .capture-item { padding: 8px 10px; border-radius: 6px; margin-bottom: 4px; background: var(--bg3); border: 1px solid var(--border); cursor: pointer; transition: border-color .15s; }
+  .capture-item:hover { border-color: var(--accent); }
+  .capture-item .ci-name { font-size: 12px; font-weight: 600; }
+  .capture-item .ci-url  { font-size: 10px; font-family: var(--mono); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Main */
+  .main { overflow: hidden; display: flex; flex-direction: column; }
+  .panel { display: none; flex-direction: column; height: 100%; overflow: hidden; }
+  .panel.active { display: flex; }
+  .panel-header { padding: 24px 28px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .panel-header h2 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  .panel-header p  { font-size: 13px; color: var(--muted); }
+  .panel-body { flex: 1; overflow-y: auto; padding: 24px 28px; }
+
+  /* Buttons */
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; border-radius: 7px; font-size: 13px; font-weight: 600; font-family: var(--sans); cursor: pointer; border: none; transition: all .15s; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent2); transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: .4; cursor: default; transform: none; }
+  .btn-ghost  { background: transparent; color: var(--text); border: 1px solid var(--border2); }
+  .btn-ghost:hover  { border-color: var(--accent); color: var(--accent2); }
+  .btn-danger { background: transparent; color: var(--red); border: 1px solid #ff5f6d44; }
+  .btn-danger:hover { background: #ff5f6d22; }
+  .btn-green  { background: var(--green); color: #000; }
+  .btn-green:hover  { opacity: .85; }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+  /* Cards */
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+  .card h3 { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+  .card p  { font-size: 12px; color: var(--muted); margin-bottom: 14px; line-height: 1.6; }
+
+  /* Input */
+  .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+  .field label { font-size: 10px; font-family: var(--mono); color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+  .field input, .field textarea {
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 7px;
+    padding: 9px 14px; color: var(--text); font-family: var(--mono); font-size: 13px;
+  }
+  .field input:focus, .field textarea:focus { outline: none; border-color: var(--accent); }
+  .field input::placeholder, .field textarea::placeholder { color: var(--muted); }
+  .field textarea { resize: vertical; min-height: 80px; }
+  .flex-row { display: flex; align-items: center; gap: 10px; }
+  .spacer { flex: 1; }
+
+  /* Method tabs */
+  .method-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+  .method-tab { flex: 1; padding: 12px; border-radius: 8px; background: var(--bg3); border: 1px solid var(--border); cursor: pointer; transition: all .15s; text-align: center; }
+  .method-tab:hover, .method-tab.active { border-color: var(--accent); background: var(--bg2); }
+  .method-tab h4 { font-size: 13px; font-weight: 700; margin-bottom: 3px; }
+  .method-tab.active h4 { color: var(--accent2); }
+  .method-tab p { font-size: 11px; color: var(--muted); }
+
+  /* Capture zone */
+  .capture-zone { background: var(--bg2); border: 2px dashed var(--border); border-radius: 12px; padding: 28px; text-align: center; transition: border-color .2s; margin-bottom: 20px; }
+  .capture-zone.ready { border-color: var(--accent); }
+  .capture-zone h3 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+  .capture-zone p  { font-size: 12px; color: var(--muted); margin-bottom: 18px; }
+  .name-row { display: flex; gap: 8px; max-width: 420px; margin: 0 auto; }
+  .name-row input { flex: 1; background: var(--bg3); border: 1px solid var(--border); border-radius: 7px; padding: 9px 14px; color: var(--text); font-family: var(--mono); font-size: 13px; }
+  .name-row input:focus { outline: none; border-color: var(--accent); }
+
+  /* Captures grid */
+  .captures-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px,1fr)); gap: 12px; margin-top: 20px; }
+  .capture-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+  .capture-card .cc-num  { font-size: 10px; font-family: var(--mono); color: var(--muted); margin-bottom: 4px; }
+  .capture-card .cc-name { font-size: 13px; font-weight: 700; margin-bottom: 3px; }
+  .capture-card .cc-url  { font-size: 10px; font-family: var(--mono); color: var(--muted); margin-bottom: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .capture-card .cc-pills { display: flex; flex-wrap: wrap; gap: 4px; }
+  .el-pill { font-size: 10px; font-family: var(--mono); padding: 2px 7px; border-radius: 4px; background: var(--bg3); border: 1px solid var(--border); color: var(--muted); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Network panel */
+  .network-item { background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:0; margin-bottom:8px; transition:all .15s; overflow:hidden; }
+  .network-item:hover { border-color:var(--accent); }
+  .network-item.expanded { border-color:var(--accent); }
+  .network-item-header { display:flex; align-items:center; gap:8px; padding:10px 12px; cursor:pointer; }
+  .network-item-header:hover { background:var(--bg3); }
+  .network-method { font-weight:700; padding:2px 6px; border-radius:3px; font-size:10px; }
+  .network-method.GET { background:#2dd4a020; color:#2dd4a0; }
+  .network-method.POST { background:#6366f120; color:#6366f1; }
+  .network-method.PUT { background:#ffb74d20; color:#ffb74d; }
+  .network-method.DELETE { background:#ff5f6d20; color:#ff5f6d; }
+  .network-method.PATCH { background:#9c27b020; color:#9c27b0; }
+  .network-url { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text); }
+  .network-status { font-size:10px; padding:2px 6px; border-radius:3px; }
+  .network-status.ok { background:#2dd4a020; color:#2dd4a0; }
+  .network-status.err { background:#ff5f6d20; color:#ff5f6d; }
+  .network-status.pending { background:#ffb74d20; color:#ffb74d; }
+  .network-duration { font-size:10px; color:var(--muted); }
+  .network-expand-icon { font-size:8px; color:var(--muted); transition:transform .2s; }
+  .network-item.expanded .network-expand-icon { transform:rotate(180deg); }
+  .network-details { padding:0 12px 12px 12px; border-top:1px solid var(--border); display:none; cursor:default; }
+  .network-item.expanded .network-details { display:block; }
+  .network-section { margin-top:10px; }
+  .network-section-title { font-size:10px; color:var(--accent2); font-weight:600; margin-bottom:4px; text-transform:uppercase; }
+  .network-json { background:var(--bg); padding:8px; border-radius:4px; max-height:200px; overflow:auto; white-space:pre-wrap; word-break:break-all; font-size:10px; color:var(--muted); user-select:text; }
+
+  /* Generate options */
+  .gen-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .gen-option { background: var(--bg2); border: 1px solid var(--border); border-radius: 9px; padding: 14px; cursor: pointer; transition: all .15s; }
+  .gen-option:hover, .gen-option.selected { border-color: var(--accent); background: var(--bg3); }
+  .gen-option h4 { font-size: 13px; font-weight: 700; margin-bottom: 3px; }
+  .gen-option.selected h4 { color: var(--accent2); }
+  .gen-option p  { font-size: 11px; color: var(--muted); }
+
+  /* Progress */
+  .gen-progress { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 16px; display: none; }
+  .gen-progress.show { display: block; }
+  .progress-bar-wrap { background: var(--bg3); border-radius: 4px; height: 4px; margin: 10px 0; }
+  .progress-bar { height: 4px; background: var(--accent); border-radius: 4px; width: 0%; transition: width .4s; }
+  .gen-status { font-size: 12px; font-family: var(--mono); color: var(--accent2); }
+
+  /* Preview */
+  .preview-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); padding: 0 28px; flex-shrink: 0; }
+  .preview-tab { padding: 10px 16px; font-size: 12px; font-weight: 600; font-family: var(--mono); cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; transition: all .15s; margin-bottom: -1px; }
+  .preview-tab:hover { color: var(--text); }
+  .preview-tab.active { color: var(--accent2); border-bottom-color: var(--accent); }
+  .code-view { display: none; flex: 1; overflow: hidden; flex-direction: column; }
+  .code-view.active { display: flex; }
+  .code-header { display: flex; align-items: center; gap: 10px; padding: 12px 28px; border-bottom: 1px solid var(--border); background: var(--bg2); flex-shrink: 0; }
+  .code-header .file-name { font-family: var(--mono); font-size: 12px; color: var(--accent2); flex: 1; }
+  .code-scroll { flex: 1; overflow: auto; }
+  .code-block { font-family: var(--mono); font-size: 12px; line-height: 1.7; padding: 20px 28px; white-space: pre; color: #c8c8e0; tab-size: 4; }
+  .kw { color: #b09aff; } .st { color: #79d4a9; } .cm { color: #555566; } .dc { color: #ffb74d; }
+
+  /* Extension banner */
+  .ext-banner { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; font-size: 12px; line-height: 1.7; color: var(--muted); }
+  .ext-banner strong { color: var(--text); }
+
+  /* Log */
+  .log-wrap { border-top: 1px solid var(--border); height: 120px; flex-shrink: 0; display: flex; flex-direction: column; }
+  .log-header { padding: 5px 28px; font-size: 10px; font-family: var(--mono); color: var(--muted); letter-spacing: 1px; text-transform: uppercase; border-bottom: 1px solid var(--border); background: var(--bg2); }
+  .log-body { flex: 1; overflow-y: auto; padding: 6px 28px; background: var(--bg); }
+  .log-line { font-size: 11px; font-family: var(--mono); line-height: 1.8; color: var(--muted); }
+  .log-line.ok  { color: var(--green); }
+  .log-line.err { color: var(--red); }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 8px; padding: 12px 18px; font-size: 13px; font-family: var(--mono); transform: translateY(80px); opacity: 0; transition: all .3s; pointer-events: none; z-index: 999; }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.ok  { border-color: var(--green); color: var(--green); }
+  .toast.err { border-color: var(--red);   color: var(--red); }
+
+  .tc-row { display:flex;align-items:center;gap:8px; }
+  .tc-num { font-size:11px;font-family:var(--mono);color:var(--muted);min-width:20px;text-align:right; }
+  .tc-input { flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text);font-family:var(--mono);font-size:12px; }
+  .tc-input:focus { outline:none;border-color:var(--accent); }
+  .tc-input::placeholder { color:var(--muted); }
+  .tc-del { background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:4px;line-height:1; }
+  .tc-del:hover { color:var(--red); }
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+  .badge { font-size: 10px; font-family: var(--mono); padding: 2px 8px; border-radius: 4px; background: var(--bg3); border: 1px solid var(--border); color: var(--muted); }
+
+  /* Test case rows */
+  .tc-row { display:flex; align-items:center; gap:8px; }
+  .tc-num { font-size:11px; font-family:var(--mono); color:var(--accent2); font-weight:600;
+    width:18px; text-align:right; flex-shrink:0; }
+  .tc-input { flex:1; background:var(--bg3); border:1px solid var(--border); border-radius:7px;
+    padding:8px 12px; color:var(--text); font-family:var(--mono); font-size:12px;
+    transition:border-color .15s; }
+  .tc-input:focus { outline:none; border-color:var(--accent); }
+  .tc-input::placeholder { color:var(--muted); }
+  .tc-del { background:transparent; border:none; color:var(--muted); cursor:pointer;
+    font-size:12px; padding:4px 6px; border-radius:4px; transition:color .15s; flex-shrink:0; }
+  .tc-del:hover { color:var(--red); background:rgba(255,95,109,.1); }
+  .tc-add-btn { width:100%; background:transparent; border:1px dashed var(--border);
+    border-radius:7px; padding:8px; color:var(--muted); font-family:var(--mono);
+    font-size:12px; cursor:pointer; transition:all .15s; }
+  .tc-add-btn:hover { border-color:var(--accent); color:var(--accent2); }
+  .tc-count-badge { font-size:10px; font-family:var(--mono); padding:2px 8px;
+    border-radius:10px; background:var(--accent)22; border:1px solid var(--accent)44;
+    color:var(--accent2); }
+  .tc-section { background:var(--bg3); border:1px solid var(--border); border-radius:10px;
+    padding:16px; margin-bottom:16px; }
+  .tc-section-header { display:flex; align-items:center; gap:8px; margin-bottom:12px; }
+  .tc-section-title { font-size:12px; font-weight:700; color:var(--text); }
+  .tc-hint { font-size:11px; font-family:var(--mono); color:var(--muted); margin-top:8px;
+    padding:8px 10px; background:var(--bg2); border-radius:6px; line-height:1.6; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="logo">habitnu <span>✦</span> web testgen</div>
+    <div class="tagline">playwright automation script generator</div>
+    <div class="spacer"></div>
+    <div class="dot" id="conn-dot"></div>
+    <div class="conn-label" id="conn-label">disconnected</div>
+  </header>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title">Workflow</div>
+      <div class="step active" id="step-1" onclick="showPanel('capture')">
+        <div class="step-num">1</div><div class="step-label">Capture</div>
+      </div>
+      <div class="step" id="step-2" onclick="showPanel('generate')">
+        <div class="step-num">2</div><div class="step-label">Generate</div>
+      </div>
+      <div class="step" id="step-3" onclick="showPanel('preview')">
+        <div class="step-num">3</div><div class="step-label">Preview & Download</div>
+      </div>
+      <div class="step" id="step-5" onclick="showPanel('testrunner')">
+        <div class="step-num">▶</div><div class="step-label">Test Runner</div>
+      </div>
+      <div class="step" id="step-4" onclick="showPanel('config')">
+        <div class="step-num">⚙</div><div class="step-label">Config</div>
+      </div>
+    </div>
+    <div class="sidebar-section" style="padding-bottom:4px">
+      <div class="sidebar-title">Captures <span id="cap-badge" class="badge" style="margin-left:4px">0</span></div>
+    </div>
+    <div class="captures-list" id="sidebar-captures"></div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+
+    <!-- Panel 1: Capture -->
+    <div class="panel active" id="panel-capture">
+      <div class="panel-header">
+        <h2>Capture screens</h2>
+        <p>Open the app in a browser, navigate to a state, then capture the DOM elements.</p>
+      </div>
+      <div class="panel-body">
+
+        <!-- Method tabs -->
+        <div class="method-tabs">
+          <div class="method-tab active" id="tab-backend" onclick="switchMethod('backend')">
+            <h4>Backend browser</h4>
+            <p>Playwright controls a browser window</p>
+          </div>
+          <div class="method-tab" id="tab-extension" onclick="switchMethod('extension')">
+            <h4>Chrome extension</h4>
+            <p>Capture from any open tab</p>
+          </div>
+        </div>
+
+        <!-- Backend method -->
+        <div id="method-backend">
+          <div class="card">
+            <h3>Launch browser session</h3>
+            <p>Playwright opens a Chromium window with a purple capture bar at the top. <strong>Click any element</strong> to capture it — it highlights in real time. When done with a screen, come back here and save.</p>
+            <div class="field">
+              <label>Target URL</label>
+              <input type="text" id="target-url" value="https://app.habitnu.com" placeholder="https://app.habitnu.com">
+            </div>
+            <div class="flex-row">
+              <button class="btn btn-primary" id="btn-launch" onclick="launchBrowser()">Launch browser</button>
+              <button class="btn btn-ghost btn-sm" id="btn-stop" onclick="stopBrowser()" style="display:none">Stop</button>
+              <button class="btn btn-danger btn-sm" onclick="clearAll()">Clear all</button>
+            </div>
+          </div>
+
+          <div class="capture-zone" id="capture-zone">
+            <h3>Save clicked elements as a screen</h3>
+            <p>Click elements in the browser window, then name this group and save. <strong>Or</strong> use "Scrape All" to auto-capture all interactive elements.</p>
+            <div class="how-to" style="display:flex;gap:16px;justify-content:center;margin-bottom:18px;flex-wrap:wrap">
+              <div style="text-align:center;font-size:11px;font-family:var(--mono);color:var(--muted)"><div style="font-size:18px;margin-bottom:4px">①</div>Navigate to screen</div>
+              <div style="text-align:center;font-size:11px;font-family:var(--mono);color:var(--muted)"><div style="font-size:18px;margin-bottom:4px">②</div>Click elements<br><em style="opacity:0.7">or Scrape All</em></div>
+              <div style="text-align:center;font-size:11px;font-family:var(--mono);color:var(--muted)"><div style="font-size:18px;margin-bottom:4px">③</div>Name & save below</div>
+              <div style="text-align:center;font-size:11px;font-family:var(--mono);color:var(--muted)"><div style="font-size:18px;margin-bottom:4px">④</div>Repeat next screen</div>
+            </div>
+            <div class="name-row">
+              <input type="text" id="screen-name" placeholder="e.g. login_page, add_weight_modal" onkeydown="if(event.key==='Enter')saveCaptures()">
+              <button class="btn btn-primary" id="btn-capture" onclick="saveCaptures()" disabled>Save clicked</button>
+              <button class="btn btn-accent" id="btn-scrape-all" onclick="scrapeAllElements()" disabled style="background:#6366f1;border-color:#6366f1">⚡ Scrape All</button>
+            </div>
+            <div style="margin-top:10px;font-size:11px;font-family:var(--mono);color:var(--muted)">
+              Press <kbd style="background:var(--bg3);border:1px solid var(--border);padding:1px 6px;border-radius:3px">ESC</kbd> to pause capture · <kbd style="background:var(--bg3);border:1px solid var(--border);padding:1px 6px;border-radius:3px">Space</kbd> to resume · <strong>Scrape All</strong> captures all interactive elements automatically
+            </div>
+          </div>
+        </div>
+
+        <!-- Extension method -->
+        <div id="method-extension" style="display:none">
+          <div class="ext-banner">
+            <strong>Chrome Extension method</strong> — Navigate to any page in Chrome,
+            click the HabitNu TestGen extension icon, name the screen, and click Capture.
+            Captures appear here in real time via the backend.<br><br>
+            <strong>To install:</strong> Chrome → Extensions → Developer mode → Load unpacked → select the <code>extension/</code> folder.
+          </div>
+          <div class="card">
+            <h3>Extension captures appear here automatically</h3>
+            <p>Open the extension popup in any Chrome tab and click Capture.</p>
+            <button class="btn btn-danger btn-sm" onclick="clearAll()">Clear all captures</button>
+          </div>
+        </div>
+
+        <div class="captures-grid" id="captures-grid"></div>
+
+        <!-- Network API Panel -->
+        <div class="card" id="network-panel" style="margin-top:16px;display:none">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+            <h3 style="margin:0;flex:1">🌐 Network Requests <span id="network-count" class="badge">0</span></h3>
+            <label style="font-size:11px;font-family:var(--mono);color:var(--muted);display:flex;align-items:center;gap:4px">
+              <input type="checkbox" id="network-api-only" onchange="refreshNetworkLog()"> API only
+            </label>
+            <button class="btn btn-ghost btn-sm" onclick="refreshNetworkLog()">↻ Refresh</button>
+            <button class="btn btn-ghost btn-sm" onclick="clearNetworkLog()">Clear</button>
+          </div>
+          <div id="network-list" style="max-height:300px;overflow-y:auto;font-family:var(--mono);font-size:11px">
+            <div style="color:var(--muted);text-align:center;padding:20px">No requests captured yet. Interact with the page to see network calls.</div>
+          </div>
+        </div>
+
+        <!-- Visual Testing Panel -->
+        <div class="card" id="visual-panel" style="margin-top:16px;display:none">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+            <h3 style="margin:0;flex:1">📸 Visual Testing <span id="screenshot-count" class="badge">0</span></h3>
+            <button class="btn btn-ghost btn-sm" onclick="listBaselines()">View Baselines</button>
+          </div>
+          
+          <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+            <div style="flex:1;min-width:200px">
+              <label style="font-size:11px;font-family:var(--mono);color:var(--muted);display:block;margin-bottom:4px">Screenshot Name</label>
+              <input type="text" id="screenshot-name" placeholder="e.g. login_page, dashboard" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text);font-family:var(--mono);font-size:12px">
+            </div>
+            <div style="display:flex;align-items:flex-end;gap:8px">
+              <label style="font-size:11px;font-family:var(--mono);color:var(--muted);display:flex;align-items:center;gap:4px">
+                <input type="checkbox" id="screenshot-fullpage"> Full page
+              </label>
+              <button class="btn btn-primary btn-sm" onclick="takeScreenshot()">📷 Capture</button>
+              <button class="btn btn-green btn-sm" onclick="setAsBaseline()" id="btn-set-baseline" disabled>Set as Baseline</button>
+              <button class="btn btn-accent btn-sm" onclick="compareWithBaseline()" id="btn-compare" disabled style="background:#6366f1;border-color:#6366f1">Compare</button>
+            </div>
+          </div>
+          
+          <!-- Screenshot Preview -->
+          <div id="screenshot-preview" style="display:none">
+            <div style="display:flex;gap:16px;flex-wrap:wrap">
+              <div style="flex:1;min-width:300px">
+                <div style="font-size:11px;font-family:var(--mono);color:var(--accent2);margin-bottom:8px">Current Screenshot</div>
+                <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+                  <img id="current-screenshot" style="width:100%;display:block">
+                </div>
+                <div id="screenshot-info" style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-top:6px"></div>
+              </div>
+              <div id="diff-preview" style="flex:1;min-width:300px;display:none">
+                <div style="font-size:11px;font-family:var(--mono);color:var(--accent2);margin-bottom:8px">Difference <span id="diff-result" class="badge"></span></div>
+                <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+                  <img id="diff-screenshot" style="width:100%;display:block">
+                </div>
+                <div id="diff-info" style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-top:6px"></div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Baselines List -->
+          <div id="baselines-list" style="display:none;margin-top:16px">
+            <div style="font-size:11px;font-family:var(--mono);color:var(--accent2);margin-bottom:8px">Saved Baselines</div>
+            <div id="baselines-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px"></div>
+          </div>
+        </div>
+      </div>
+      <div class="log-wrap">
+        <div class="log-header">Console</div>
+        <div class="log-body" id="log"></div>
+      </div>
+    </div>
+
+    <!-- Panel 2: Generate -->
+    <div class="panel" id="panel-generate">
+      <div class="panel-header">
+        <h2>Generate scripts</h2>
+        <p>Describe the test flow and Claude generates Playwright Page Object + pytest files.</p>
+      </div>
+      <div class="panel-body">
+        <div class="card">
+          <h3>Configuration</h3>
+          <div class="field">
+            <label>Anthropic API key</label>
+            <input type="password" id="api-key" placeholder="sk-ant-...">
+          </div>
+          <div class="field">
+            <label>Test scenario description</label>
+            <textarea id="scenario" placeholder="e.g. User logs in with valid credentials and lands on dashboard" style="min-height:60px"></textarea>
+          </div>
+
+          <!-- Test case mode toggle -->
+          <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+            <div id="mode-auto" class="gen-option selected" onclick="setTestMode('auto')" style="flex:1;min-width:150px;cursor:pointer">
+              <h4>Auto generate</h4>
+              <p>Claude decides what to test based on captured screens</p>
+            </div>
+            <div id="mode-manual" class="gen-option" onclick="setTestMode('manual')" style="flex:1;min-width:150px;cursor:pointer">
+              <h4>My test cases</h4>
+              <p>I type the list, Claude writes exactly those</p>
+            </div>
+            <div id="mode-csv" class="gen-option" onclick="setTestMode('csv')" style="flex:1;min-width:150px;cursor:pointer">
+              <h4>Upload CSV</h4>
+              <p>Import test cases from CSV file</p>
+            </div>
+          </div>
+
+          <!-- Test cases input — shown only in manual mode -->
+          <div class="tc-section" id="tc-section" style="display:none">
+            <div class="tc-section-header">
+              <div class="tc-section-title">Test cases</div>
+              <span class="tc-count-badge" id="tc-count">0 test cases</span>
+              <div class="spacer"></div>
+              <button class="btn btn-ghost btn-sm" onclick="clearTestCases()" style="font-size:11px;padding:3px 10px;color:var(--muted)">Clear</button>
+              <button class="btn btn-ghost btn-sm" onclick="loadExamples()" style="font-size:11px;padding:3px 10px">Load examples</button>
+            </div>
+            <div id="testcases-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px"></div>
+            <button class="tc-add-btn" onclick="addTestCase()">+ Add test case — press Enter to add another</button>
+            <div class="tc-hint">
+              Claude will generate <strong>exactly one test method per case</strong> — no more, no less.<br>
+              Write cases as plain descriptions: <em>"Verify login fails with wrong password"</em>
+            </div>
+          </div>
+
+          <!-- CSV upload section — shown only in csv mode -->
+          <div class="tc-section" id="csv-section" style="display:none">
+            <div class="tc-section-header">
+              <div class="tc-section-title">Upload CSV Test Cases</div>
+              <span class="tc-count-badge" id="csv-tc-count">0 test cases</span>
+              <div class="spacer"></div>
+              <button class="btn btn-ghost btn-sm" onclick="clearCsvTestCases()" style="font-size:11px;padding:3px 10px;color:var(--muted)">Clear</button>
+            </div>
+            
+            <!-- File upload area -->
+            <div id="csv-drop-zone" style="
+              border: 2px dashed var(--border);
+              border-radius: 8px;
+              padding: 24px;
+              text-align: center;
+              cursor: pointer;
+              transition: all 0.2s;
+              margin-bottom: 12px;
+            " onclick="document.getElementById('csv-file-input').click()"
+               ondragover="event.preventDefault(); this.style.borderColor='var(--accent)'; this.style.background='var(--bg2)'"
+               ondragleave="this.style.borderColor='var(--border)'; this.style.background='transparent'"
+               ondrop="handleCsvDrop(event)">
+              <input type="file" id="csv-file-input" accept=".csv" style="display:none" onchange="handleCsvFile(this.files[0])">
+              <div style="font-size:24px;margin-bottom:8px">📄</div>
+              <div style="font-size:13px;font-weight:600;margin-bottom:4px">Drop CSV file here or click to browse</div>
+              <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">Supports: Name, Objective, Steps columns</div>
+            </div>
+            
+            <!-- Uploaded file info -->
+            <div id="csv-file-info" style="display:none;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+                <span style="font-size:16px">✅</span>
+                <span id="csv-file-name" style="font-family:var(--mono);font-size:12px;color:var(--green)"></span>
+                <div class="spacer"></div>
+                <button class="btn btn-ghost btn-sm" onclick="clearCsvTestCases()" style="font-size:10px;padding:2px 8px">Remove</button>
+              </div>
+              <div id="csv-preview" style="max-height:200px;overflow-y:auto;font-family:var(--mono);font-size:11px;color:var(--muted)"></div>
+            </div>
+            
+            <div class="tc-hint">
+              <strong>Expected CSV format:</strong><br>
+              • Column 1: <code>Name</code> — Test case name/ID<br>
+              • Column 2: <code>Objective</code> — What the test validates<br>
+              • Column 3: <code>Precondition</code> — Setup requirements (optional)<br>
+              • Column 4+: <code>Steps</code> — Test steps (optional, can be combined)<br>
+              <br>
+              Claude will generate <strong>one test method per row</strong> in the CSV.
+            </div>
+          </div>
+
+          <div class="sidebar-title" style="margin-bottom:10px">Output type</div>
+          <div class="gen-options">
+            <div class="gen-option selected" id="opt-both"   onclick="selectOpt('both')">  <h4>Page Object + Tests</h4><p>Full POM + pytest suite</p></div>
+            <div class="gen-option"          id="opt-page"   onclick="selectOpt('page')">  <h4>Page Object only</h4>   <p>Locators and methods</p></div>
+            <div class="gen-option"          id="opt-test"   onclick="selectOpt('test')">  <h4>Tests only</h4>         <p>Uses existing POM</p></div>
+            <div class="gen-option"          id="opt-manual" onclick="selectOpt('manual')"><h4>Manual Test Cases</h4>  <p>CSV format for QA docs</p></div>
+          </div>
+          <button class="btn btn-primary" id="btn-gen" onclick="generateScripts()">✦ Generate scripts</button>
+        </div>
+        <div class="gen-progress" id="gen-progress">
+          <div class="gen-status" id="gen-status">Preparing...</div>
+          <div class="progress-bar-wrap"><div class="progress-bar" id="prog-bar"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel 3: Preview -->
+    <div class="panel" id="panel-preview">
+      <div class="panel-header" style="padding-bottom:0">
+        <div class="flex-row" style="margin-bottom:12px">
+          <h2>Preview & Download</h2>
+          <div class="spacer"></div>
+          <button class="btn btn-green btn-sm" onclick="downloadAll()">↓ Download all</button>
+        </div>
+      </div>
+      <div class="preview-tabs" id="preview-tabs"></div>
+      <div id="preview-panels" style="flex:1;overflow:hidden;display:flex;flex-direction:column"></div>
+    </div>
+
+    <!-- Panel 5: Test Runner -->
+    <div class="panel" id="panel-testrunner">
+      <div class="panel-header">
+        <h2>🧪 Test Runner</h2>
+        <p>Execute automated tests with your credentials and test cases</p>
+      </div>
+      <div class="panel-body">
+        
+        <!-- Credentials Section -->
+        <div class="card">
+          <h3>🔐 Credentials</h3>
+          <p>Store login credentials securely. Use <code>${username}</code>, <code>${password}</code> etc. in test steps.</p>
+          <div id="creds-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+            <div class="flex-row">
+              <input type="text" class="tc-input cred-key" placeholder="Key (e.g. username)" value="username" style="flex:0.4">
+              <input type="text" class="tc-input cred-value" placeholder="Value" style="flex:0.6">
+              <button class="tc-del" onclick="this.parentElement.remove()">✕</button>
+            </div>
+            <div class="flex-row">
+              <input type="text" class="tc-input cred-key" placeholder="Key (e.g. password)" value="password" style="flex:0.4">
+              <input type="password" class="tc-input cred-value" placeholder="Value" style="flex:0.6">
+              <button class="tc-del" onclick="this.parentElement.remove()">✕</button>
+            </div>
+          </div>
+          <button class="tc-add-btn" onclick="addCredentialRow()">+ Add credential</button>
+        </div>
+
+        <!-- AI Test Generation Section -->
+        <div class="card" style="border-color:var(--accent)44;background:linear-gradient(135deg,var(--bg2),var(--bg3))">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <span style="font-size:20px">🤖</span>
+            <h3 style="margin:0">AI Test Generator</h3>
+            <span class="badge" style="background:var(--accent)22;border-color:var(--accent);color:var(--accent2)">Auto</span>
+          </div>
+          <p>Describe what you want to test in plain English. AI will generate test steps using locators.</p>
+          
+          <!-- Locator Source Tabs -->
+          <div style="display:flex;gap:4px;margin-bottom:12px;border-bottom:1px solid var(--border);padding-bottom:8px">
+            <button class="btn btn-sm" id="loc-tab-page" onclick="switchLocatorTab('page')" style="background:var(--accent);color:#fff">📄 Live Page</button>
+            <button class="btn btn-ghost btn-sm" id="loc-tab-codebase" onclick="switchLocatorTab('codebase')">📁 Codebase</button>
+            <button class="btn btn-ghost btn-sm" id="loc-tab-captures" onclick="switchLocatorTab('captures')">📸 Captures</button>
+          </div>
+          
+          <!-- Live Page Scanner -->
+          <div id="locator-source-page">
+            <div class="field">
+              <label>Locators from Current Page</label>
+              <div id="captured-locators-summary" style="font-family:var(--mono);font-size:11px;color:var(--muted);padding:8px;background:var(--bg);border-radius:6px;max-height:120px;overflow-y:auto">
+                ⚠️ Open browser and navigate to a page first, then click "Scan Page"
+              </div>
+            </div>
+            <div class="flex-row" style="margin-bottom:12px;gap:8px">
+              <button class="btn btn-primary btn-sm" onclick="scanCurrentPage()">🔍 Scan Current Page</button>
+            </div>
+          </div>
+          
+          <!-- Codebase Scanner -->
+          <div id="locator-source-codebase" style="display:none">
+            <div class="field">
+              <label>Dev Codebase Path</label>
+              <input type="text" id="codebase-path" placeholder="/path/to/your/frontend/src" style="font-family:var(--mono)">
+            </div>
+            <div class="field">
+              <label>File Patterns (comma separated)</label>
+              <input type="text" id="codebase-patterns" value="**/*.tsx, **/*.jsx, **/*.vue, **/*.html" style="font-family:var(--mono);font-size:11px">
+            </div>
+            <div class="flex-row" style="margin-bottom:12px;gap:8px">
+              <button class="btn btn-primary btn-sm" onclick="scanCodebase()">📁 Scan Codebase</button>
+              <span id="codebase-status" style="font-size:11px;font-family:var(--mono);color:var(--muted)"></span>
+            </div>
+            <div id="codebase-locators-summary" style="font-family:var(--mono);font-size:11px;color:var(--muted);padding:8px;background:var(--bg);border-radius:6px;max-height:150px;overflow-y:auto;display:none">
+            </div>
+          </div>
+          
+          <!-- From Captures -->
+          <div id="locator-source-captures" style="display:none">
+            <div class="field">
+              <label>Locators from Captured Screens</label>
+              <div id="captures-locators-summary" style="font-family:var(--mono);font-size:11px;color:var(--muted);padding:8px;background:var(--bg);border-radius:6px;max-height:120px;overflow-y:auto">
+                ⚠️ No captures yet. Go to Capture tab and save some screens.
+              </div>
+            </div>
+            <div class="flex-row" style="margin-bottom:12px;gap:8px">
+              <button class="btn btn-primary btn-sm" onclick="loadCapturedLocators()">↻ Refresh from Captures</button>
+            </div>
+          </div>
+          
+          <div class="field" style="margin-top:12px">
+            <label>Test Description (plain English)</label>
+            <textarea id="test-description" placeholder="Example: Login with valid credentials, verify dashboard loads, check user name is displayed in header" style="min-height:80px"></textarea>
+          </div>
+          
+          <div class="flex-row">
+            <button class="btn btn-primary" id="btn-generate-steps" onclick="generateTestSteps()">
+              🤖 Generate Test Steps
+            </button>
+            <span id="generation-status" style="font-size:11px;font-family:var(--mono);color:var(--muted)"></span>
+          </div>
+        </div>
+
+        <!-- Test Steps Section -->
+        <div class="card">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <h3 style="margin:0">📋 Test Steps</h3>
+            <span id="steps-count-badge" class="badge">0</span>
+          </div>
+          <p>Steps can be auto-generated above or manually added. The runner executes each action in sequence.</p>
+          
+          <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" onclick="addTestStep('goto')">+ Navigate</button>
+            <button class="btn btn-ghost btn-sm" onclick="addTestStep('fill')">+ Fill</button>
+            <button class="btn btn-ghost btn-sm" onclick="addTestStep('click')">+ Click</button>
+            <button class="btn btn-ghost btn-sm" onclick="addTestStep('wait')">+ Wait</button>
+            <button class="btn btn-ghost btn-sm" onclick="addTestStep('assert_visible')">+ Assert Visible</button>
+            <button class="btn btn-ghost btn-sm" onclick="addTestStep('assert_text')">+ Assert Text</button>
+            <button class="btn btn-ghost btn-sm" onclick="addTestStep('assert_url')">+ Assert URL</button>
+            <div class="spacer"></div>
+            <button class="btn btn-danger btn-sm" onclick="clearTestSteps()">Clear All</button>
+          </div>
+          
+          <div id="test-steps-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;max-height:300px;overflow-y:auto">
+            <!-- Test steps added dynamically -->
+          </div>
+          
+          <details style="margin-top:8px">
+            <summary style="font-size:11px;color:var(--muted);cursor:pointer">Step Types Reference</summary>
+            <div class="tc-hint" style="margin-top:8px">
+              • <code>goto</code> — Navigate to URL<br>
+              • <code>fill</code> — Fill input (use <code>${username}</code> for credentials)<br>
+              • <code>click</code> — Click element<br>
+              • <code>type</code> — Type text with delay<br>
+              • <code>wait</code> — Wait milliseconds<br>
+              • <code>wait_for</code> — Wait for element visible<br>
+              • <code>press</code> — Press key (Enter, Tab)<br>
+              • <code>assert_visible</code> — Check element visible<br>
+              • <code>assert_text</code> — Check text content<br>
+              • <code>assert_url</code> — Check URL contains
+            </div>
+          </details>
+        </div>
+
+        <!-- Run Controls -->
+        <div class="card">
+          <h3>▶️ Execute Test</h3>
+          <p>Make sure browser is open first, then run the test.</p>
+          <div class="field">
+            <label>Test Name</label>
+            <input type="text" id="test-run-name" value="Login Test" placeholder="e.g. Login Flow Test">
+          </div>
+          <div class="flex-row" style="margin-bottom:16px">
+            <button class="btn btn-primary" id="btn-run-test" onclick="runTestCase()">▶ Run Test</button>
+            <button class="btn btn-ghost" onclick="clearTestResults()">Clear Results</button>
+          </div>
+          
+          <!-- Test Progress -->
+          <div id="test-progress" style="display:none;margin-bottom:16px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+              <div id="test-progress-icon" style="font-size:18px">⏳</div>
+              <div id="test-progress-text" style="font-family:var(--mono);font-size:12px;color:var(--accent2)">Running...</div>
+            </div>
+            <div class="progress-bar-wrap"><div class="progress-bar" id="test-prog-bar" style="width:0%"></div></div>
+          </div>
+          
+          <!-- Test Results -->
+          <div id="test-results" style="max-height:300px;overflow-y:auto">
+            <div style="font-size:11px;font-family:var(--mono);color:var(--muted);text-align:center;padding:20px">
+              No tests run yet. Add steps and click "Run Test".
+            </div>
+          </div>
+        </div>
+
+        <!-- Captured Locators Panel -->
+        <div class="card" id="locators-panel" style="display:none">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <h3 style="margin:0">📍 Available Locators</h3>
+            <span id="locators-total-badge" class="badge">0</span>
+          </div>
+          <p>These locators were captured and can be used in test steps. Click to copy.</p>
+          <div id="locators-list" style="max-height:250px;overflow-y:auto">
+            <!-- Locators shown here -->
+          </div>
+        </div>
+        
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Config Panel (outside shell, full overlay) -->
+<div id="panel-config" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:100;flex-direction:column;overflow:hidden">
+  <div style="background:var(--bg2);border-bottom:1px solid var(--border);padding:16px 28px;display:flex;align-items:center;gap:12px">
+    <div style="font-size:16px;font-weight:700">Framework Config</div>
+    <div style="font-size:12px;color:var(--muted);font-family:var(--mono)">prompt_config.json — edit page objects, rules, imports</div>
+    <div style="flex:1"></div>
+    <button class="btn btn-green btn-sm" onclick="saveConfig()">Save config</button>
+    <button class="btn btn-ghost btn-sm" onclick="showPanel('generate')">Close</button>
+  </div>
+  <div style="flex:1;overflow:auto;padding:24px 28px">
+    <div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:12px">
+      Add your page objects, methods and locators here. The generator reads this file live — no code changes needed.
+    </div>
+    <textarea id="config-editor" style="
+      width:100%;height:calc(100vh - 180px);
+      background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+      padding:16px;color:var(--text);font-family:var(--mono);font-size:12px;
+      line-height:1.7;resize:none;
+    " spellcheck="false"></textarea>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const socket = io();
+let captures = [], scripts = [], genOpt = 'both', activeMethod = 'backend';
+let networkLog = [];
+let networkRefreshInterval = null;
+let currentScreenshot = null; // Store current screenshot for comparison
+
+socket.on('connect',         ()  => log('Socket connected', 'ok'));
+socket.on('status',          (d) => { if (d.connected) setConnected(true); });
+socket.on('browser_started', (d) => { 
+  setConnected(true); 
+  document.getElementById('capture-zone').classList.add('ready'); 
+  document.getElementById('btn-capture').disabled = false; 
+  document.getElementById('btn-scrape-all').disabled = false; 
+  document.getElementById('network-panel').style.display = 'block'; 
+  document.getElementById('visual-panel').style.display = 'block';
+  document.getElementById('btn-launch').style.display = 'none'; 
+  document.getElementById('btn-stop').style.display = ''; 
+  toast('Browser launched!', 'ok');
+  // Start auto-refresh for network log
+  if (networkRefreshInterval) clearInterval(networkRefreshInterval);
+  networkRefreshInterval = setInterval(() => refreshNetworkLog(), 3000);
+  setTimeout(() => refreshNetworkLog(), 500);
+});
+socket.on('browser_stopped', ()  => { 
+  setConnected(false); 
+  document.getElementById('btn-capture').disabled = true; 
+  document.getElementById('btn-scrape-all').disabled = true; 
+  document.getElementById('network-panel').style.display = 'none'; 
+  document.getElementById('visual-panel').style.display = 'none';
+  document.getElementById('btn-launch').style.display = ''; 
+  document.getElementById('btn-stop').style.display = 'none';
+  // Stop auto-refresh
+  if (networkRefreshInterval) { clearInterval(networkRefreshInterval); networkRefreshInterval = null; }
+});
+socket.on('screen_captured', onCaptured);
+socket.on('captures_cleared',()  => { captures = []; scripts = []; renderCaptures(); renderSidebar(); });
+socket.on('log',             (d) => log(d.msg));
+socket.on('error',           (d) => log(d.msg, 'err'));
+socket.on('navigated',       (d) => { log(`→ ${d.url}`); setTimeout(() => refreshNetworkLog(), 1000); });
+socket.on('network_log',     (d) => { networkLog = d.network || []; renderNetworkLog(); });
+
+// Visual testing events
+socket.on('screenshot_taken', onScreenshotTaken);
+socket.on('baseline_set', (d) => { toast(`Baseline set: ${d.name}`, 'ok'); });
+socket.on('visual_comparison_result', onVisualComparisonResult);
+socket.on('baselines_list', renderBaselinesList);
+
+function setConnected(on) {
+  document.getElementById('conn-dot').className    = 'dot' + (on ? ' on' : '');
+  document.getElementById('conn-label').textContent = on ? 'connected' : 'disconnected';
+}
+
+function switchMethod(m) {
+  activeMethod = m;
+  document.getElementById('tab-backend').classList.toggle('active',   m === 'backend');
+  document.getElementById('tab-extension').classList.toggle('active', m === 'extension');
+  document.getElementById('method-backend').style.display   = m === 'backend'   ? '' : 'none';
+  document.getElementById('method-extension').style.display = m === 'extension' ? '' : 'none';
+}
+
+function launchBrowser() {
+  const url = document.getElementById('target-url').value.trim() || 'https://app.habitnu.com';
+  log(`Launching browser → ${url}`);
+  socket.emit('start_browser', { url, headless: false });
+}
+function stopBrowser()  { socket.emit('stop_browser'); }
+function captureScreen() {
+  saveCaptures();
+}
+function saveCaptures() {
+  const name = document.getElementById('screen-name').value.trim() || 'screen';
+  socket.emit('save_captures', { name });
+  document.getElementById('screen-name').value = '';
+}
+
+function scrapeAllElements() {
+  const name = document.getElementById('screen-name').value.trim() || 'all_elements';
+  log('Scraping all interactive elements...', 'info');
+  socket.emit('scrape_all_elements', { name });
+  document.getElementById('screen-name').value = '';
+}
+
+function clearAll() { socket.emit('clear_captures'); }
+
+function onCaptured(data) {
+  captures.push(data);
+  renderCaptures();
+  renderSidebar();
+  if (captures.length >= 1) markStep(1, 'done');
+  const count = data.count || (data.preview||[]).length;
+  toast(`Saved: ${data.name} (${count} elements)`, 'ok');
+}
+
+function renderCaptures() {
+  document.getElementById('captures-grid').innerHTML = captures.map(c => `
+    <div class="capture-card">
+      <div class="cc-num">Screen ${c.index} · ${c.count || (c.preview||[]).length} elements</div>
+      <div class="cc-name">${c.name}</div>
+      <div class="cc-url">${c.url||''}</div>
+      <div class="cc-pills">${(c.preview||[]).slice(0,8).map(e=>{
+        const conf = e.confidence || '';
+        const color = conf==='high'?'#2dd4a0':conf==='medium'?'#ffb74d':'#888899';
+        const net = e.network ? ' 🌐' : '';
+        return `<div class="el-pill" style="border-color:${color}20;color:${color}" title="${e.strategy||''}">${e.locator||e}${net}</div>`;
+      }).join('')}</div>
+    </div>`).join('');
+}
+function renderSidebar() {
+  document.getElementById('cap-badge').textContent = captures.length;
+  document.getElementById('sidebar-captures').innerHTML = captures.map(c => `
+    <div class="capture-item"><div class="ci-name">${c.name}</div><div class="ci-url">${c.url||''}</div></div>`).join('');
+}
+
+// ── Network Log ───────────────────────────────────────────────────────────────
+let networkPaused = false; // Pause auto-refresh when viewing details
+
+function refreshNetworkLog() {
+  // Don't refresh if user is viewing details
+  if (networkPaused) return;
+  const apiOnly = document.getElementById('network-api-only').checked;
+  socket.emit('get_network_log', { api_only: apiOnly });
+}
+
+function clearNetworkLog() {
+  socket.emit('clear_network_log');
+  networkPaused = false;
+}
+
+function renderNetworkLog() {
+  const container = document.getElementById('network-list');
+  const countBadge = document.getElementById('network-count');
+  countBadge.textContent = networkLog.length;
+  
+  // Don't re-render if paused (user is viewing details)
+  if (networkPaused) {
+    return;
+  }
+  
+  if (!networkLog.length) {
+    container.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px">No requests captured yet. Interact with the page to see network calls.</div>';
+    return;
+  }
+  
+  container.innerHTML = networkLog.slice().reverse().map((n, i) => {
+    const statusClass = n.status >= 200 && n.status < 300 ? 'ok' : n.status >= 400 ? 'err' : 'pending';
+    const statusText = n.status || 'pending';
+    const urlShort = (n.url || '').replace(/^https?:\/\/[^\/]+/, '');
+    const reqHeaders = n.requestHeaders ? JSON.stringify(n.requestHeaders, null, 2) : '{}';
+    const resHeaders = n.responseHeaders ? JSON.stringify(n.responseHeaders, null, 2) : '{}';
+    const reqBody = n.requestBody || '(none)';
+    const resBody = formatJsonBody(n.responseBody);
+    const duration = n.duration ? `${n.duration}ms` : '-';
+    
+    return `
+      <div class="network-item" data-index="${i}">
+        <div class="network-item-header" onclick="toggleNetworkItem(${i})">
+          <span class="network-method ${n.method}">${n.method}</span>
+          <span class="network-url" title="${escapeHtml(n.url)}">${escapeHtml(urlShort)}</span>
+          <span class="network-status ${statusClass}">${statusText}</span>
+          <span class="network-duration">${duration}</span>
+          <span class="network-expand-icon">▼</span>
+        </div>
+        <div class="network-details">
+          <div class="network-section">
+            <div class="network-section-title">URL</div>
+            <div class="network-json">${escapeHtml(n.url || '-')}</div>
+          </div>
+          <div class="network-section">
+            <div class="network-section-title">Request Headers</div>
+            <div class="network-json">${escapeHtml(reqHeaders)}</div>
+          </div>
+          <div class="network-section">
+            <div class="network-section-title">Request Body</div>
+            <div class="network-json">${escapeHtml(reqBody)}</div>
+          </div>
+          <div class="network-section">
+            <div class="network-section-title">Response Headers</div>
+            <div class="network-json">${escapeHtml(resHeaders)}</div>
+          </div>
+          <div class="network-section">
+            <div class="network-section-title">Response Body</div>
+            <div class="network-json">${escapeHtml(resBody)}</div>
+          </div>
+          <div style="margin-top:10px;text-align:right">
+            <button class="btn btn-ghost btn-sm" onclick="closeNetworkDetails()">Close</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function toggleNetworkItem(index) {
+  const item = document.querySelector(`.network-item[data-index="${index}"]`);
+  if (!item) return;
+  
+  const wasExpanded = item.classList.contains('expanded');
+  
+  // Close all other expanded items first
+  document.querySelectorAll('.network-item.expanded').forEach(el => {
+    el.classList.remove('expanded');
+  });
+  
+  if (!wasExpanded) {
+    // Opening - pause auto-refresh
+    item.classList.add('expanded');
+    networkPaused = true;
+  } else {
+    // Closing - resume auto-refresh
+    networkPaused = false;
+  }
+}
+
+function closeNetworkDetails() {
+  document.querySelectorAll('.network-item.expanded').forEach(el => {
+    el.classList.remove('expanded');
+  });
+  networkPaused = false;
+  // Refresh to get latest data
+  const apiOnly = document.getElementById('network-api-only').checked;
+  socket.emit('get_network_log', { api_only: apiOnly });
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function formatJsonBody(body) {
+  if (!body) return '(none)';
+  try {
+    const parsed = JSON.parse(body);
+    return JSON.stringify(parsed, null, 2);
+  } catch {
+    return body;
+  }
+}
+
+// ── Visual Testing ────────────────────────────────────────────────────────────
+let screenshotCount = 0;
+
+function takeScreenshot() {
+  const name = document.getElementById('screenshot-name').value.trim() || `screenshot_${++screenshotCount}`;
+  const fullPage = document.getElementById('screenshot-fullpage').checked;
+  
+  log('Taking screenshot...');
+  socket.emit('take_screenshot', { name, full_page: fullPage });
+}
+
+function onScreenshotTaken(data) {
+  currentScreenshot = data;
+  
+  // Update count
+  document.getElementById('screenshot-count').textContent = ++screenshotCount;
+  
+  // Show preview
+  document.getElementById('screenshot-preview').style.display = 'block';
+  document.getElementById('current-screenshot').src = `data:image/png;base64,${data.base64}`;
+  document.getElementById('screenshot-info').innerHTML = `
+    <strong>${data.name}</strong> · ${data.url || ''}<br>
+    Saved: ${data.filename}
+  `;
+  
+  // Enable buttons
+  document.getElementById('btn-set-baseline').disabled = false;
+  document.getElementById('btn-compare').disabled = false;
+  
+  // Hide diff preview
+  document.getElementById('diff-preview').style.display = 'none';
+  
+  toast(`Screenshot captured: ${data.name}`, 'ok');
+}
+
+function setAsBaseline() {
+  if (!currentScreenshot) {
+    toast('Take a screenshot first', 'err');
+    return;
+  }
+  
+  const name = document.getElementById('screenshot-name').value.trim() || currentScreenshot.name;
+  socket.emit('set_visual_baseline', {
+    name: name,
+    base64: currentScreenshot.base64
+  });
+}
+
+function compareWithBaseline() {
+  if (!currentScreenshot) {
+    toast('Take a screenshot first', 'err');
+    return;
+  }
+  
+  const name = document.getElementById('screenshot-name').value.trim() || currentScreenshot.name;
+  log(`Comparing with baseline: ${name}...`);
+  socket.emit('compare_visual', {
+    name: name,
+    base64: currentScreenshot.base64,
+    threshold: 0.05 // 5% threshold
+  });
+}
+
+function onVisualComparisonResult(data) {
+  document.getElementById('diff-preview').style.display = 'block';
+  
+  const resultBadge = document.getElementById('diff-result');
+  if (data.match) {
+    resultBadge.textContent = '✓ MATCH';
+    resultBadge.style.background = '#2dd4a020';
+    resultBadge.style.color = '#2dd4a0';
+    document.getElementById('diff-screenshot').src = '';
+    document.getElementById('diff-info').textContent = `No visual differences detected (threshold: ${(data.threshold * 100).toFixed(1)}%)`;
+  } else {
+    resultBadge.textContent = `✗ ${data.difference_percent.toFixed(2)}% different`;
+    resultBadge.style.background = '#ff5f6d20';
+    resultBadge.style.color = '#ff5f6d';
+    if (data.diff_base64) {
+      document.getElementById('diff-screenshot').src = `data:image/png;base64,${data.diff_base64}`;
+    }
+    document.getElementById('diff-info').innerHTML = `
+      <strong>${data.details.diff_pixels.toLocaleString()}</strong> pixels different out of ${data.details.total_pixels.toLocaleString()}<br>
+      Threshold: ${(data.threshold * 100).toFixed(1)}%
+    `;
+  }
+  
+  toast(data.match ? 'Visual test PASSED ✓' : `Visual test FAILED - ${data.difference_percent.toFixed(2)}% different`, data.match ? 'ok' : 'err');
+}
+
+function listBaselines() {
+  socket.emit('list_baselines');
+  document.getElementById('baselines-list').style.display = 'block';
+}
+
+function renderBaselinesList(data) {
+  const grid = document.getElementById('baselines-grid');
+  const baselines = data.baselines || [];
+  
+  if (!baselines.length) {
+    grid.innerHTML = '<div style="color:var(--muted);font-size:11px">No baselines saved yet. Take a screenshot and click "Set as Baseline".</div>';
+    return;
+  }
+  
+  grid.innerHTML = baselines.map(b => `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px;text-align:center">
+      <div style="font-size:11px;font-family:var(--mono);color:var(--accent2);margin-bottom:4px">${b.name}</div>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('screenshot-name').value='${b.name}'" style="font-size:10px">Use</button>
+    </div>
+  `).join('');
+}
+
+// Generate
+function selectOpt(o) {
+  genOpt = o;
+  ['both','page','test','manual'].forEach(x => document.getElementById('opt-'+x).classList.toggle('selected', x===o));
+}
+
+// ── Test mode ─────────────────────────────────────────────────────────────────
+let testMode = 'auto';
+let csvTestCases = []; // Store parsed CSV test cases
+
+function setTestMode(mode) {
+  testMode = mode;
+  document.getElementById('mode-auto').classList.toggle('selected', mode === 'auto');
+  document.getElementById('mode-manual').classList.toggle('selected', mode === 'manual');
+  document.getElementById('mode-csv').classList.toggle('selected', mode === 'csv');
+  document.getElementById('tc-section').style.display = mode === 'manual' ? 'block' : 'none';
+  document.getElementById('csv-section').style.display = mode === 'csv' ? 'block' : 'none';
+}
+
+// ── CSV Upload handling ───────────────────────────────────────────────────────
+function handleCsvDrop(event) {
+  event.preventDefault();
+  event.target.style.borderColor = 'var(--border)';
+  event.target.style.background = 'transparent';
+  const file = event.dataTransfer.files[0];
+  if (file && file.name.endsWith('.csv')) {
+    handleCsvFile(file);
+  } else {
+    toast('Please drop a CSV file', 'err');
+  }
+}
+
+function handleCsvFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const content = e.target.result;
+    parseCsvTestCases(content, file.name);
+  };
+  reader.readAsText(file);
+}
+
+function parseCsvTestCases(content, filename) {
+  const lines = parseCSVLines(content);
+  if (lines.length < 2) {
+    toast('CSV file is empty or has no data rows', 'err');
+    return;
+  }
+  
+  const headers = lines[0].map(h => h.toLowerCase().trim());
+  const nameIdx = headers.findIndex(h => h.includes('name'));
+  const objIdx = headers.findIndex(h => h.includes('objective'));
+  const preIdx = headers.findIndex(h => h.includes('precondition'));
+  const stepIdx = headers.findIndex(h => h.includes('step'));
+  
+  csvTestCases = [];
+  for (let i = 1; i < lines.length; i++) {
+    const row = lines[i];
+    if (row.length === 0 || row.every(cell => !cell.trim())) continue;
+    
+    const tc = {
+      name: nameIdx >= 0 ? row[nameIdx] || '' : row[0] || '',
+      objective: objIdx >= 0 ? row[objIdx] || '' : row[1] || '',
+      precondition: preIdx >= 0 ? row[preIdx] || '' : '',
+      steps: stepIdx >= 0 ? row[stepIdx] || '' : ''
+    };
+    
+    // Only add if it has at least a name or objective
+    if (tc.name.trim() || tc.objective.trim()) {
+      csvTestCases.push(tc);
+    }
+  }
+  
+  if (csvTestCases.length === 0) {
+    toast('No valid test cases found in CSV', 'err');
+    return;
+  }
+  
+  // Update UI
+  document.getElementById('csv-file-info').style.display = 'block';
+  document.getElementById('csv-file-name').textContent = `${filename} (${csvTestCases.length} test cases)`;
+  document.getElementById('csv-tc-count').textContent = `${csvTestCases.length} test cases`;
+  
+  // Show preview
+  const preview = document.getElementById('csv-preview');
+  preview.innerHTML = csvTestCases.slice(0, 10).map((tc, i) => `
+    <div style="padding:6px 0;border-bottom:1px solid var(--border)">
+      <span style="color:var(--green)">${i+1}.</span> 
+      <strong style="color:var(--text)">${tc.name || 'Unnamed'}</strong>
+      ${tc.objective ? `<br><span style="color:var(--muted);margin-left:18px">${tc.objective.slice(0,80)}${tc.objective.length > 80 ? '...' : ''}</span>` : ''}
+    </div>
+  `).join('') + (csvTestCases.length > 10 ? `<div style="padding:6px 0;color:var(--muted)">...and ${csvTestCases.length - 10} more</div>` : '');
+  
+  toast(`Loaded ${csvTestCases.length} test cases from CSV`, 'ok');
+  log(`CSV loaded: ${filename} with ${csvTestCases.length} test cases`, 'ok');
+}
+
+function parseCSVLines(content) {
+  const lines = [];
+  let currentLine = [];
+  let currentCell = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < content.length; i++) {
+    const char = content[i];
+    const nextChar = content[i + 1];
+    
+    if (inQuotes) {
+      if (char === '"' && nextChar === '"') {
+        currentCell += '"';
+        i++; // Skip next quote
+      } else if (char === '"') {
+        inQuotes = false;
+      } else {
+        currentCell += char;
+      }
+    } else {
+      if (char === '"') {
+        inQuotes = true;
+      } else if (char === ',') {
+        currentLine.push(currentCell.trim());
+        currentCell = '';
+      } else if (char === '\n' || (char === '\r' && nextChar === '\n')) {
+        currentLine.push(currentCell.trim());
+        if (currentLine.some(cell => cell)) lines.push(currentLine);
+        currentLine = [];
+        currentCell = '';
+        if (char === '\r') i++; // Skip \n in \r\n
+      } else if (char !== '\r') {
+        currentCell += char;
+      }
+    }
+  }
+  
+  // Don't forget the last cell/line
+  currentLine.push(currentCell.trim());
+  if (currentLine.some(cell => cell)) lines.push(currentLine);
+  
+  return lines;
+}
+
+function clearCsvTestCases() {
+  csvTestCases = [];
+  document.getElementById('csv-file-info').style.display = 'none';
+  document.getElementById('csv-file-input').value = '';
+  document.getElementById('csv-tc-count').textContent = '0 test cases';
+  document.getElementById('csv-preview').innerHTML = '';
+}
+
+function getCsvTestCasesForPrompt() {
+  return csvTestCases.map((tc, i) => {
+    let desc = `${i + 1}. ${tc.name || 'Test Case ' + (i+1)}`;
+    if (tc.objective) desc += `\n   Objective: ${tc.objective}`;
+    if (tc.precondition) desc += `\n   Precondition: ${tc.precondition}`;
+    if (tc.steps) desc += `\n   Steps: ${tc.steps.replace(/\n/g, ' | ')}`;
+    return desc;
+  }).join('\n\n');
+}
+
+// ── Test cases list ───────────────────────────────────────────────────────────
+let testCaseCounter = 0;
+
+const EXAMPLE_TEST_CASES = [
+  'Verify page loads and all required elements are visible',
+  'Verify login fails with empty email field',
+  'Verify login fails with empty password field',
+  'Verify login fails with invalid credentials',
+  'Verify successful login navigates to dashboard',
+];
+
+function addTestCase(value='') {
+  testCaseCounter++;
+  const list = document.getElementById('testcases-list');
+  const row  = document.createElement('div');
+  row.className = 'tc-row';
+  row.id = `tc-row-${testCaseCounter}`;
+  const id = testCaseCounter;
+  const num = list.children.length + 1;
+  row.innerHTML = `
+    <span class="tc-num">${num}</span>
+    <input class="tc-input" id="tc-${id}"
+      placeholder="e.g. Verify login fails with empty password"
+      value="${value.replace(/"/g,'&quot;')}"
+      oninput="updateTcCount()"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();addTestCase();}">
+    <button class="tc-del" onclick="removeTestCase('tc-row-${id}')" title="Remove">✕</button>
+  `;
+  list.appendChild(row);
+  document.getElementById(`tc-${id}`).focus();
+  renumberTestCases();
+  updateTcCount();
+}
+
+function removeTestCase(rowId) {
+  const el = document.getElementById(rowId);
+  if (el) { el.remove(); renumberTestCases(); updateTcCount(); }
+}
+
+function renumberTestCases() {
+  document.querySelectorAll('#testcases-list .tc-num').forEach((el, i) => {
+    el.textContent = i + 1;
+  });
+}
+
+function updateTcCount() {
+  const n = getTestCases().length;
+  const badge = document.getElementById('tc-count');
+  badge.textContent = n === 0 ? '0 test cases'
+    : n === 1 ? '1 test case'
+    : `${n} test cases`;
+}
+
+function clearTestCases() {
+  document.getElementById('testcases-list').innerHTML = '';
+  updateTcCount();
+}
+
+function loadExamples() {
+  clearTestCases();
+  EXAMPLE_TEST_CASES.forEach(tc => addTestCase(tc));
+}
+
+function getTestCases() {
+  return Array.from(document.querySelectorAll('#testcases-list .tc-input'))
+    .map(el => el.value.trim())
+    .filter(v => v.length > 0);
+}
+
+async function generateScripts() {
+  if (!captures.length) { toast('No captures yet — capture screens first', 'err'); return; }
+  const apiKey   = document.getElementById('api-key').value.trim();
+  const scenario = document.getElementById('scenario').value.trim() || 'generate test scripts';
+  if (!apiKey) { toast('Enter API key first', 'err'); return; }
+  
+  // Validate CSV mode has uploaded test cases
+  if (testMode === 'csv' && csvTestCases.length === 0) {
+    toast('Upload a CSV file with test cases first', 'err');
+    return;
+  }
+
+  const btn = document.getElementById('btn-gen');
+  btn.disabled = true; btn.textContent = '⏳ Generating...';
+  const prog = document.getElementById('gen-progress');
+  prog.classList.add('show'); setProgress(10, 'Preparing DOM data...');
+
+  const domSummaries = captures.map(c => {
+    const els = (c.preview||[]).map(e => {
+      const parts = [`  locator: "${e.locator||e}"`];
+      if (e.strategy)   parts.push(`  strategy: ${e.strategy} (confidence: ${e.confidence||'?'})`);
+      if (e.text)       parts.push(`  text: "${e.text}"`);
+      if (e.interactive !== undefined) parts.push(`  interactive: ${e.interactive}`);
+      if (e.network)    parts.push(`  triggers_network: true`);
+      return parts.join('\n');
+    }).join('\n---\n');
+    return `=== Screen ${c.index}: ${c.name} ===\nURL: ${c.url||''}\nTitle: ${c.title||''}\n${els}`;
+  }).join('\n\n');
+
+  // Build test cases instruction based on mode
+  const testCases = getTestCases();
+  let testCaseInstruction;
+  let testCaseCount = 0;
+
+  if (testMode === 'csv' && csvTestCases.length > 0) {
+    testCaseCount = csvTestCases.length;
+    const csvContent = getCsvTestCasesForPrompt();
+    testCaseInstruction = `IMPORTANT — Generate EXACTLY ${csvTestCases.length} test method(s), one per test case from the uploaded CSV.
+Do not add extra tests. Do not combine test cases. Each CSV row = exactly one test method.
+
+Test cases from CSV file:
+${csvContent}
+
+Name each test method based on the Name column from CSV (convert to valid Python function name).
+Use the Objective as docstring for each test method.
+If Steps are provided, implement them in sequence.
+Use @pytest.mark.priority(N) starting from 1.`;
+  } else if (testMode === 'manual' && testCases.length > 0) {
+    testCaseCount = testCases.length;
+    testCaseInstruction = `IMPORTANT — Generate EXACTLY ${testCases.length} test method(s), one per test case below.
+Do not add extra tests. Do not combine test cases. Each test case = exactly one test method.
+
+Test cases to implement:
+${testCases.map((tc, i) => `  ${i+1}. ${tc}`).join('\n')}
+
+Name each test method clearly based on the test case description.
+Use @pytest.mark.priority(N) starting from 1.`;
+  } else {
+    testCaseInstruction = `AUTO MODE — Analyze the captured screens and generate a comprehensive test suite.
+Decide what test cases make sense based on the screens, elements and user flows captured.
+Cover: happy path, validation, edge cases, navigation — whatever is relevant to the scenario.
+Use @pytest.mark.priority(N) starting from 1.
+Aim for 5-10 focused test methods that together give good coverage of the captured flow.
+
+CRITICAL CONSTRAINTS FOR AUTO MODE:
+- Only use page object methods that are explicitly listed in the AVAILABLE PAGE OBJECTS section
+- Only use config methods listed in the CONFIG MANAGER section — never config.get() or config['key']
+- Only use locators that were actually captured — never invent locators
+- If credentials needed: creds = config.get_login_credentials() then creds['webUsername']`;
+  }
+
+  const outputMap = {
+    both: 'Generate BOTH a Playwright Page Object (pages/xxx_page.py) AND a pytest test suite (tests/test_xxx.py).',
+    page: 'Generate ONLY the Playwright Page Object (pages/xxx_page.py).',
+    test: 'Generate ONLY the pytest test suite (tests/test_xxx.py) assuming the page object already exists.',
+    manual: 'Generate MANUAL TEST CASES in Markdown format (.md file) for QA testers to execute manually.',
+  };
+
+  // Build specialized prompt for manual test cases
+  let prompt;
+  if (genOpt === 'manual') {
+    prompt = `You are an expert QA engineer creating manual test case documentation in CSV format.
+
+Test scenario: ${scenario}
+
+Captured screens and user interactions from the web application:
+${domSummaries}
+
+Generate manual test cases in CSV format with the following headers:
+Name,Objective,Precondition,Test Script (Step-by-Step) — Step,Test Script (Step-by-Step) — Test Data,Test Script (Step-by-Step) — Expected Result
+
+CRITICAL CSV RULES:
+1. First line MUST be exactly: Name,Objective,Precondition,Test Script (Step-by-Step) — Step,Test Script (Step-by-Step) — Test Data,Test Script (Step-by-Step) — Expected Result
+2. **ONE ROW PER TEST CASE** - Each test case must be a single row, NOT multiple rows
+3. Combine ALL steps into ONE cell using line breaks (use actual newline characters within double quotes)
+4. Wrap fields containing commas, quotes, or newlines in double quotes
+5. Escape double quotes by doubling them ("")
+
+COLUMN DEFINITIONS:
+- Name: Test case name/identifier (e.g., "TC_Login_Valid_Credentials")
+- Objective: What this test case validates (e.g., "Verify user can login with valid credentials")
+- Precondition: What must be true before test starts (e.g., "User is on login page, has valid account")
+- Test Script (Step-by-Step) — Step: ALL steps combined in one cell, numbered and separated by newlines
+- Test Script (Step-by-Step) — Test Data: ALL test data for each step, matched by step number, separated by newlines
+- Test Script (Step-by-Step) — Expected Result: ALL expected results for each step, separated by newlines
+
+EXAMPLE OUTPUT FORMAT:
+# FILE: manual_test_cases.csv
+Name,Objective,Precondition,Test Script (Step-by-Step) — Step,Test Script (Step-by-Step) — Test Data,Test Script (Step-by-Step) — Expected Result
+TC_Login_Valid_Credentials,Verify successful login with valid credentials,User is on login page with valid account,"1. Navigate to login page
+2. Enter email in email field
+3. Enter password in password field
+4. Click Login button","https://app.example.com/
+testuser@example.com
+Password123!
+","Login page loads successfully
+Email is displayed in the field
+Password is masked
+User is redirected to dashboard"
+TC_Login_Empty_Email,Verify error when email is empty,User is on login page,"1. Leave email field empty
+2. Enter password
+3. Click Login button","
+Password123!
+","Email field remains empty
+Password is displayed
+Error message: Email is required"
+TC_Login_Invalid_Format,Verify error for invalid email format,User is on login page,"1. Enter invalid email format
+2. Enter password
+3. Click Login button","invalid-email
+Password123!
+","Invalid email entered
+Password is displayed
+Error message: Invalid email format"
+
+GUIDELINES:
+1. Create test cases based on the ACTUAL captured elements and screens
+2. Include POSITIVE tests (happy path), NEGATIVE tests (error cases), and EDGE CASES
+3. Be SPECIFIC about which elements to interact with
+4. Each test case = ONE ROW with all steps combined in the Step column
+5. Match step numbers across Step, Test Data, and Expected Result columns
+6. If a step has no test data, leave that line empty but maintain line alignment
+7. Include at least one test for each captured screen/interaction
+8. Use descriptive test case names with underscores (no spaces)
+
+${testCaseInstruction}
+
+Generate the complete CSV file. IMPORTANT: Each test case must be exactly ONE row with steps combined using newlines within quoted fields.`;
+  } else {
+    prompt = `You are an expert web test automation engineer using Playwright + Python + pytest.
+
+Test scenario: ${scenario}
+
+Captured screens from HabitNu web app:
+${domSummaries}
+
+FRAMEWORK RULES — follow these exactly, no deviations:
+
+__FRAMEWORK_CONTEXT__
+
+${testCaseInstruction}
+
+${outputMap[genOpt]}
+
+For each file start with: # FILE: filename.py
+Then write the complete file content.
+`;
+  }
+
+  setProgress(30, 
+    testMode === 'csv' ? `Generating ${csvTestCases.length} test(s) from CSV...` :
+    testMode === 'manual' ? `Generating ${testCases.length} test case(s)...` : 
+    genOpt === 'manual' ? 'Generating manual test cases...' : 
+    'Auto-generating test suite...'
+  );
+  try {
+    const r = await fetch('/api/generate', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ api_key: apiKey, prompt, max_tokens: 4000 }),
+    });
+    setProgress(70, 'Parsing scripts...');
+    const d    = await r.json();
+    const text = d.content?.map(b=>b.text||'').join('') || d.error || '';
+    scripts = parseScripts(text);
+    setProgress(100, `✅ Generated ${scripts.length} file(s)`);
+    if (scripts.length > 0) {
+      renderPreview(); markStep(2,'done'); markStep(3,'active');
+      setTimeout(()=>showPanel('preview'), 500);
+      toast(`Generated ${scripts.length} file(s)!`, 'ok');
+    }
+  } catch(e) { log(`Error: ${e.message}`, 'err'); }
+  btn.disabled = false; btn.textContent = '✦ Generate scripts';
+}
+
+function parseScripts(text) {
+  const files = [];
+  // Match .py, .md, and .csv files
+  const re = /# FILE:\s*(\S+\.(py|md|csv))([\s\S]*?)(?=# FILE:|$)/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    let content = m[3].trim().replace(/^```(?:python|markdown|md|csv)?\n?/,'').replace(/\n?```$/,'').trim();
+    files.push({ filename: m[1].trim(), content });
+  }
+  if (!files.length) {
+    // Try to find code blocks
+    (text.match(/```(?:python|markdown|md|csv)?([\s\S]*?)```/g)||[]).forEach((b,i) => {
+      const content  = b.replace(/^```(?:python|markdown|md|csv)?\n?/,'').replace(/\n?```$/,'').trim();
+      const nm       = content.split('\n')[0].match(/# ([\w/]+\.(py|md|csv))/);
+      const isCSV    = b.includes('```csv') || content.includes('Test Script (Step-by-Step)');
+      const isMD     = b.includes('```markdown') || b.includes('```md');
+      const ext      = isCSV ? 'csv' : isMD ? 'md' : 'py';
+      files.push({ filename: nm ? nm[1].split('/').pop() : `generated_${i+1}.${ext}`, content });
+    });
+  }
+  if (!files.length && text.trim()) {
+    // Determine file type from content
+    const isCSV = text.includes('Test Script (Step-by-Step)') || (text.includes(',') && text.split('\n')[0].split(',').length >= 5);
+    const isMarkdown = text.includes('## Test Cases') || text.includes('| Step |') || text.includes('### TC-');
+    const filename = isCSV ? 'manual_test_cases.csv' : isMarkdown ? 'manual_test_cases.md' : 'generated.py';
+    files.push({ filename, content: text.trim() });
+  }
+  return files;
+}
+
+function setProgress(p, msg) {
+  document.getElementById('prog-bar').style.width = p+'%';
+  document.getElementById('gen-status').textContent = msg;
+}
+
+// Preview
+function renderPreview() {
+  const tabs = document.getElementById('preview-tabs');
+  const pans = document.getElementById('preview-panels');
+  tabs.innerHTML = pans.innerHTML = '';
+  scripts.forEach((s,i) => {
+    const tab = document.createElement('div');
+    tab.className = 'preview-tab'+(i===0?' active':'');
+    tab.textContent = s.filename; tab.onclick = ()=>switchTab(i);
+    tabs.appendChild(tab);
+    const pane = document.createElement('div');
+    pane.className = 'code-view'+(i===0?' active':'');
+    pane.innerHTML = `
+      <div class="code-header">
+        <div class="file-name">${s.filename}</div>
+        <button class="btn btn-ghost btn-sm" onclick="copyScript(${i})">Copy</button>
+        <button class="btn btn-green btn-sm" onclick="dlScript(${i})">↓ Download</button>
+      </div>
+      <div class="code-scroll"><div class="code-block">${highlight(s.content, s.filename)}</div></div>`;
+    pans.appendChild(pane);
+  });
+}
+function switchTab(i) {
+  document.querySelectorAll('.preview-tab').forEach((t,j)=>t.classList.toggle('active',i===j));
+  document.querySelectorAll('.code-view').forEach((p,j)=>p.classList.toggle('active',i===j));
+}
+function highlight(c, filename='') {
+  const escaped = c.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  
+  // Check if it's a CSV file
+  if (filename.endsWith('.csv') || c.includes('Test Script (Step-by-Step)')) {
+    const lines = escaped.split('\n');
+    return lines.map((line, idx) => {
+      if (idx === 0) {
+        // Header row - highlight in purple
+        return `<span style="color:#b09aff;font-weight:600">${line}</span>`;
+      }
+      // Data rows - highlight different columns
+      const parts = line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/); // Split by comma, respecting quotes
+      if (parts.length >= 6) {
+        return [
+          `<span style="color:#2dd4a0">${parts[0]}</span>`,  // Name - green
+          `<span style="color:#7ec8ff">${parts[1]}</span>`,  // Objective - blue
+          `<span style="color:#ffb74d">${parts[2]}</span>`,  // Precondition - amber
+          `<span style="color:#e8e8f0">${parts[3]}</span>`,  // Step - white
+          `<span style="color:#79d4a9">${parts[4]}</span>`,  // Test Data - light green
+          `<span style="color:#b09aff">${parts.slice(5).join(',')}</span>`,  // Expected Result - purple
+        ].join('<span style="color:#555">,</span>');
+      }
+      return line;
+    }).join('\n');
+  }
+  
+  // Check if it's a markdown file
+  if (filename.endsWith('.md') || c.includes('## Test Cases') || c.includes('| Step |')) {
+    return escaped
+      // Headers
+      .replace(/^(#{1,6})\s+(.*)$/gm, '<span class="kw">$1</span> <span style="color:#b09aff;font-weight:600">$2</span>')
+      // Bold
+      .replace(/\*\*([^*]+)\*\*/g, '<strong style="color:#ffb74d">$1</strong>')
+      // Table headers and rows
+      .replace(/^\|(.+)\|$/gm, '<span style="color:#7ec8ff">|$1|</span>')
+      // Checkboxes
+      .replace(/\[ \]/g, '<span style="color:#888">☐</span>')
+      // List items
+      .replace(/^(\s*[-*])\s/gm, '<span class="kw">$1</span> ')
+      // Inline code
+      .replace(/`([^`]+)`/g, '<span class="st">`$1`</span>')
+      // TC-XXX identifiers
+      .replace(/(TC-\d+)/g, '<span style="color:#2dd4a0;font-weight:600">$1</span>')
+      // Priority/Status keywords
+      .replace(/\b(High|Medium|Low|Pass|Fail|Blocked|Functional|UI|Validation|Negative|Boundary)\b/g, '<span class="dc">$1</span>');
+  }
+  
+  // Python highlighting
+  return escaped
+    .replace(/(#[^\n]*)/g,'<span class="cm">$1</span>')
+    .replace(/("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/g,'<span class="st">$1</span>')
+    .replace(/\b(import|from|class|def|return|if|else|elif|for|in|and|or|not|True|False|None|try|except|with|as|assert|self|cls)\b/g,'<span class="kw">$1</span>')
+    .replace(/\b(pytest|page|expect|locator|Playwright)\b/g,'<span class="dc">$1</span>')
+    .replace(/@[\w.]+/g,'<span style="color:#7ec8ff">$&</span>');
+}
+function copyScript(i)  { navigator.clipboard.writeText(scripts[i].content).then(()=>toast('Copied!','ok')); }
+function dlScript(i)    { 
+  const s = scripts[i];
+  const mimeType = s.filename.endsWith('.md') ? 'text/markdown' 
+                 : s.filename.endsWith('.csv') ? 'text/csv' 
+                 : 'text/plain';
+  const a = document.createElement('a'); 
+  a.href = URL.createObjectURL(new Blob([s.content], {type: mimeType})); 
+  a.download = s.filename; 
+  a.click(); 
+}
+async function downloadAll() {
+  try { await fetch('/api/scripts/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scripts})}); toast('Saved to generated_scripts/','ok'); } catch{}
+  scripts.forEach((_,i)=>dlScript(i));
+}
+
+// Nav
+function showPanel(n) {
+  ['capture','generate','preview'].forEach(p=>document.getElementById('panel-'+p).classList.toggle('active',p===n));
+}
+function markStep(n,s) { const e=document.getElementById('step-'+n); e.classList.remove('active','done'); e.classList.add(s); }
+
+function log(msg, type='info') {
+  const el = document.getElementById('log'); if(!el) return;
+  const l = document.createElement('div');
+  l.className='log-line '+type; l.textContent='['+new Date().toLocaleTimeString()+'] '+msg;
+  el.appendChild(l); el.scrollTop=el.scrollHeight;
+}
+function toast(msg,type='ok') {
+  const t=document.getElementById('toast'); t.textContent=msg; t.className='toast show '+type;
+  setTimeout(()=>t.className='toast',2500);
+}
+
+fetch('/api/status').then(r=>r.json()).then(d=>{
+  if(d.connected) setConnected(true);
+  document.getElementById('target-url').value = d.target_url || 'https://app.habitnu.com';
+  log(`Backend ready · Playwright: ${d.playwright_available ? 'available' : 'not installed'}`);
+}).catch(()=>log('Backend not reachable — is server.py running?','err'));
+
+// ── Config panel ──────────────────────────────────────────────────────────────
+async function loadConfig() {
+  try {
+    const r = await fetch('/api/config');
+    const d = await r.json();
+    document.getElementById('config-editor').value = JSON.stringify(d, null, 2);
+  } catch(e) { log('Could not load config: ' + e.message, 'err'); }
+}
+
+async function saveConfig() {
+  const editor = document.getElementById('config-editor');
+  try {
+    const parsed = JSON.parse(editor.value);
+    await fetch('/api/config', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(parsed)
+    });
+    toast('Config saved!', 'ok');
+    log('prompt_config.json updated', 'ok');
+  } catch(e) {
+    toast('Invalid JSON — fix and retry', 'err');
+    log('Config save failed: ' + e.message, 'err');
+  }
+}
+
+// Extended showPanel — handles config overlay without recursion
+function showPanel(n) {
+  const configEl = document.getElementById('panel-config');
+  if (n === 'config') {
+    configEl.style.display = 'flex';
+    loadConfig();
+    ['1','2','3','4','5'].forEach((_, i) => {
+      const s = document.getElementById('step-' + (i+1));
+      if (s) s.classList.remove('active', 'done');
+    });
+    const s4 = document.getElementById('step-4');
+    if (s4) s4.classList.add('active');
+  } else {
+    if (configEl) configEl.style.display = 'none';
+    // Direct panel switching — no recursion
+    ['capture','generate','preview','testrunner'].forEach(p => {
+      const panel = document.getElementById('panel-'+p);
+      if (panel) panel.classList.toggle('active', p === n);
+    });
+    ['1','2','3','5'].forEach((num, i) => {
+      const panels = ['capture','generate','preview','testrunner'];
+      const s = document.getElementById('step-'+num);
+      if (s && !s.classList.contains('done')) {
+        s.classList.toggle('active', panels[i] === n);
+      }
+    });
+  }
+}
+
+// ── Test Runner ───────────────────────────────────────────────────────────────
+
+let testStepCounter = 0;
+
+// Socket events for test runner
+socket.on('test_started', (d) => {
+  document.getElementById('test-progress').style.display = 'block';
+  document.getElementById('test-progress-icon').textContent = '⏳';
+  document.getElementById('test-progress-text').textContent = `Running: ${d.name} (${d.total_steps} steps)`;
+  document.getElementById('test-prog-bar').style.width = '0%';
+  document.getElementById('btn-run-test').disabled = true;
+});
+
+socket.on('test_step_started', (d) => {
+  const pct = ((d.step_num - 1) / d.total) * 100;
+  document.getElementById('test-prog-bar').style.width = pct + '%';
+  document.getElementById('test-progress-text').textContent = 
+    `Step ${d.step_num}/${d.total}: ${d.step.type}...`;
+});
+
+socket.on('test_step_passed', (d) => {
+  const pct = (d.step_num / d.total) * 100;
+  document.getElementById('test-prog-bar').style.width = pct + '%';
+  appendTestResult(d.step_num, d.step, true, null, d.url);
+});
+
+socket.on('test_step_failed', (d) => {
+  appendTestResult(d.step_num, d.step, false, d.error);
+});
+
+socket.on('test_passed', (d) => {
+  document.getElementById('test-progress-icon').textContent = '✅';
+  document.getElementById('test-progress-text').textContent = `PASSED: ${d.name}`;
+  document.getElementById('test-prog-bar').style.width = '100%';
+  document.getElementById('test-prog-bar').style.background = '#2dd4a0';
+  document.getElementById('btn-run-test').disabled = false;
+  toast('Test PASSED!', 'ok');
+});
+
+socket.on('test_failed', (d) => {
+  document.getElementById('test-progress-icon').textContent = '❌';
+  document.getElementById('test-progress-text').textContent = `FAILED: ${d.name}`;
+  document.getElementById('test-prog-bar').style.background = '#ff5f6d';
+  document.getElementById('btn-run-test').disabled = false;
+  toast('Test FAILED', 'err');
+});
+
+socket.on('step_result', (d) => {
+  if (d.ok) {
+    log(`✅ Quick step passed: ${d.step.type}`, 'ok');
+    toast('Step executed!', 'ok');
+  } else {
+    log(`❌ Quick step failed: ${d.error}`, 'err');
+    toast('Step failed: ' + d.error, 'err');
+  }
+});
+
+function getCredentials() {
+  const creds = {};
+  document.querySelectorAll('#creds-list .flex-row').forEach(row => {
+    const key = row.querySelector('.cred-key')?.value?.trim();
+    const val = row.querySelector('.cred-value')?.value;
+    if (key) creds[key] = val;
+  });
+  return creds;
+}
+
+function addCredentialRow() {
+  const list = document.getElementById('creds-list');
+  const row = document.createElement('div');
+  row.className = 'flex-row';
+  row.innerHTML = `
+    <input type="text" class="tc-input cred-key" placeholder="Key" style="flex:0.4">
+    <input type="text" class="tc-input cred-value" placeholder="Value" style="flex:0.6">
+    <button class="tc-del" onclick="this.parentElement.remove()">✕</button>
+  `;
+  list.appendChild(row);
+}
+
+function addTestStep(type) {
+  testStepCounter++;
+  const list = document.getElementById('test-steps-list');
+  const row = document.createElement('div');
+  row.className = 'flex-row test-step-row';
+  row.dataset.stepNum = testStepCounter;
+  
+  let selectorPlaceholder = 'Selector (CSS/XPath)';
+  let valuePlaceholder = 'Value';
+  let showSelector = true;
+  let showValue = true;
+  
+  switch(type) {
+    case 'goto':
+      selectorPlaceholder = '';
+      showSelector = false;
+      valuePlaceholder = 'URL (e.g. https://example.com)';
+      break;
+    case 'fill':
+    case 'type':
+      valuePlaceholder = 'Text to type (use ${username} for creds)';
+      break;
+    case 'click':
+    case 'assert_visible':
+    case 'wait_for':
+      valuePlaceholder = '';
+      showValue = false;
+      break;
+    case 'wait':
+      selectorPlaceholder = '';
+      showSelector = false;
+      valuePlaceholder = 'Milliseconds (e.g. 1000)';
+      break;
+    case 'press':
+      valuePlaceholder = 'Key (Enter, Tab, Escape, etc.)';
+      break;
+    case 'assert_text':
+      valuePlaceholder = 'Expected text';
+      break;
+    case 'assert_url':
+      selectorPlaceholder = '';
+      showSelector = false;
+      valuePlaceholder = 'URL should contain...';
+      break;
+  }
+  
+  row.innerHTML = `
+    <span class="tc-num">${testStepCounter}</span>
+    <select class="tc-input step-type" style="flex:0 0 100px" onchange="updateStepFields(this)">
+      <option value="goto" ${type==='goto'?'selected':''}>Navigate</option>
+      <option value="fill" ${type==='fill'?'selected':''}>Fill</option>
+      <option value="click" ${type==='click'?'selected':''}>Click</option>
+      <option value="type" ${type==='type'?'selected':''}>Type</option>
+      <option value="press" ${type==='press'?'selected':''}>Press</option>
+      <option value="wait" ${type==='wait'?'selected':''}>Wait</option>
+      <option value="wait_for" ${type==='wait_for'?'selected':''}>Wait For</option>
+      <option value="assert_visible" ${type==='assert_visible'?'selected':''}>Assert Visible</option>
+      <option value="assert_text" ${type==='assert_text'?'selected':''}>Assert Text</option>
+      <option value="assert_url" ${type==='assert_url'?'selected':''}>Assert URL</option>
+      <option value="assert_title" ${type==='assert_title'?'selected':''}>Assert Title</option>
+    </select>
+    <input type="text" class="tc-input step-selector" placeholder="${selectorPlaceholder}" style="flex:1;${showSelector?'':'display:none'}">
+    <input type="text" class="tc-input step-value" placeholder="${valuePlaceholder}" style="flex:0.8;${showValue?'':'display:none'}">
+    <button class="tc-del" onclick="this.parentElement.remove();updateStepsCount()">✕</button>
+  `;
+  list.appendChild(row);
+  updateStepsCount();
+}
+
+function updateStepFields(select) {
+  const row = select.closest('.test-step-row');
+  const type = select.value;
+  const selectorInput = row.querySelector('.step-selector');
+  const valueInput = row.querySelector('.step-value');
+  
+  // Reset visibility
+  selectorInput.style.display = '';
+  valueInput.style.display = '';
+  
+  switch(type) {
+    case 'goto':
+    case 'wait':
+    case 'assert_url':
+      selectorInput.style.display = 'none';
+      break;
+    case 'click':
+    case 'assert_visible':
+    case 'wait_for':
+      valueInput.style.display = 'none';
+      break;
+  }
+}
+
+function getTestSteps() {
+  const steps = [];
+  document.querySelectorAll('#test-steps-list .test-step-row').forEach(row => {
+    steps.push({
+      type: row.querySelector('.step-type').value,
+      selector: row.querySelector('.step-selector').value.trim(),
+      value: row.querySelector('.step-value').value
+    });
+  });
+  return steps;
+}
+
+function runTestCase() {
+  const name = document.getElementById('test-run-name').value.trim() || 'Test';
+  const steps = getTestSteps();
+  const creds = getCredentials();
+  
+  if (steps.length === 0) {
+    toast('Add at least one test step', 'err');
+    return;
+  }
+  
+  // Clear previous results
+  document.getElementById('test-results').innerHTML = '';
+  document.getElementById('test-prog-bar').style.background = 'var(--accent)';
+  
+  socket.emit('run_test_case', { name, steps, credentials: creds });
+}
+
+function appendTestResult(stepNum, step, passed, error, url) {
+  const container = document.getElementById('test-results');
+  // Clear placeholder if first result
+  if (container.querySelector('.log-line')) {
+    container.innerHTML = '';
+  }
+  
+  const div = document.createElement('div');
+  div.style.cssText = `
+    padding: 8px 12px;
+    margin-bottom: 4px;
+    border-radius: 6px;
+    background: ${passed ? '#2dd4a015' : '#ff5f6d15'};
+    border-left: 3px solid ${passed ? '#2dd4a0' : '#ff5f6d'};
+    font-family: var(--mono);
+    font-size: 11px;
+  `;
+  
+  const icon = passed ? '✅' : '❌';
+  const status = passed ? 'PASS' : 'FAIL';
+  let details = `${step.type}`;
+  if (step.selector) details += ` → "${step.selector}"`;
+  if (step.value && step.type !== 'fill') details += ` = "${step.value}"`;
+  if (step.type === 'fill') details += ` = "***"`;
+  
+  div.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px">
+      <span>${icon}</span>
+      <span style="color:${passed ? '#2dd4a0' : '#ff5f6d'};font-weight:600">[${stepNum}] ${status}</span>
+      <span style="color:var(--muted)">${details}</span>
+    </div>
+    ${error ? `<div style="color:#ff5f6d;margin-top:4px;padding-left:24px">Error: ${error}</div>` : ''}
+    ${url ? `<div style="color:var(--muted);margin-top:2px;padding-left:24px;font-size:10px">URL: ${url}</div>` : ''}
+  `;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function clearTestResults() {
+  document.getElementById('test-results').innerHTML = `
+    <div style="font-size:11px;font-family:var(--mono);color:var(--muted);text-align:center;padding:20px">
+      No tests run yet. Add steps and click "Run Test".
+    </div>
+  `;
+  document.getElementById('test-progress').style.display = 'none';
+  document.getElementById('test-prog-bar').style.width = '0%';
+  document.getElementById('test-prog-bar').style.background = 'var(--accent)';
+}
+
+function clearTestSteps() {
+  document.getElementById('test-steps-list').innerHTML = '';
+  testStepCounter = 0;
+  updateStepsCount();
+  toast('Test steps cleared', 'ok');
+}
+
+function updateStepsCount() {
+  const count = document.querySelectorAll('#test-steps-list .test-step-row').length;
+  document.getElementById('steps-count-badge').textContent = count;
+}
+
+// ── AI Test Generation ────────────────────────────────────────────────────────
+
+let capturedLocators = [];
+
+socket.on('captured_locators', (data) => {
+  capturedLocators = data.screens || [];
+  const total = data.total || 0;
+  
+  const summary = document.getElementById('captured-locators-summary');
+  if (total === 0) {
+    summary.innerHTML = '<span style="color:var(--amber)">⚠️ No locators captured yet. Go to Capture tab and capture some screens first!</span>';
+  } else {
+    const screenNames = capturedLocators.map(s => `<strong>${s.screen}</strong> (${s.elements.length})`).join(', ');
+    summary.innerHTML = `✅ <strong>${total}</strong> locators from: ${screenNames}`;
+  }
+  
+  // Show locators panel
+  renderLocatorsPanel();
+});
+
+socket.on('test_generation_started', () => {
+  document.getElementById('btn-generate-steps').disabled = true;
+  document.getElementById('generation-status').textContent = '🤖 Generating...';
+});
+
+socket.on('test_steps_generated', (data) => {
+  document.getElementById('btn-generate-steps').disabled = false;
+  document.getElementById('generation-status').textContent = '✅ Done';
+  
+  const steps = data.steps || [];
+  if (steps.length === 0) {
+    toast('No steps generated', 'err');
+    return;
+  }
+  
+  // Clear existing steps
+  document.getElementById('test-steps-list').innerHTML = '';
+  testStepCounter = 0;
+  
+  // Add generated steps
+  steps.forEach(step => {
+    addTestStepWithData(step);
+  });
+  
+  updateStepsCount();
+  toast(`Generated ${steps.length} test steps!`, 'ok');
+});
+
+// Reset generation button on error
+socket.on('error', (data) => {
+  document.getElementById('btn-generate-steps').disabled = false;
+  document.getElementById('generation-status').textContent = '';
+});
+
+function loadCapturedLocators() {
+  socket.emit('get_captured_locators');
+  log('Loading captured locators...');
+}
+
+function scanCurrentPage() {
+  log('🔍 Scanning current page for locators...');
+  document.getElementById('captured-locators-summary').innerHTML = '<span style="color:var(--accent)">⏳ Scanning page...</span>';
+  
+  socket.emit('scrape_all_elements', { name: '_temp_scan', returnOnly: true });
+}
+
+// Handle scrape result for test runner
+socket.on('page_scanned', (data) => {
+  const elements = data.elements || [];
+  const summary = document.getElementById('captured-locators-summary');
+  
+  if (elements.length === 0) {
+    summary.innerHTML = '⚠️ No interactive elements found on current page';
+    return;
+  }
+  
+  // Store for AI generation
+  window.scannedLocators = elements;
+  
+  // Group by element type
+  const grouped = {};
+  elements.forEach(el => {
+    const tag = el.tag || 'other';
+    if (!grouped[tag]) grouped[tag] = [];
+    grouped[tag].push(el);
+  });
+  
+  let html = `<div style="color:var(--green);margin-bottom:8px">✅ Found ${elements.length} elements</div>`;
+  html += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
+  
+  Object.entries(grouped).forEach(([tag, els]) => {
+    html += `<span class="badge" style="background:var(--accent)22">${tag}: ${els.length}</span>`;
+  });
+  html += '</div>';
+  
+  // Show first few locators
+  html += '<div style="margin-top:8px;max-height:80px;overflow-y:auto;font-size:10px">';
+  elements.slice(0, 10).forEach(el => {
+    const tag = el.element?.tag || el.tag || 'element';
+    const text = el.element?.text?.substring(0, 20) || el.text?.substring(0, 20) || el.element?.placeholder || el.placeholder || el.element?.id || el.id || el.element?.name || el.name || '';
+    // locator could be an object with .value or a string
+    const locatorStr = typeof el.locator === 'object' ? (el.locator.value || JSON.stringify(el.locator)) : (el.locator || '');
+    const locatorDisplay = locatorStr.substring(0, 50);
+    html += `<div style="color:var(--muted);padding:2px 0"><span style="color:var(--green)">${tag}</span> → <code style="color:var(--accent2)">${locatorDisplay}</code> ${text ? `"${text}"` : ''}</div>`;
+  });
+  if (elements.length > 10) {
+    html += `<div style="color:var(--muted)">...and ${elements.length - 10} more</div>`;
+  }
+  html += '</div>';
+  
+  summary.innerHTML = html;
+  log(`✅ Scanned ${elements.length} elements from current page`, 'ok');
+});
+
+// ── Codebase Scanner ──────────────────────────────────────────────────────────
+
+let codebaseLocators = [];
+let activeLocatorTab = 'page';
+
+function switchLocatorTab(tab) {
+  activeLocatorTab = tab;
+  
+  // Update tab buttons
+  ['page', 'codebase', 'captures'].forEach(t => {
+    const btn = document.getElementById('loc-tab-' + t);
+    if (t === tab) {
+      btn.className = 'btn btn-sm';
+      btn.style.background = 'var(--accent)';
+      btn.style.color = '#fff';
+    } else {
+      btn.className = 'btn btn-ghost btn-sm';
+      btn.style.background = '';
+      btn.style.color = '';
+    }
+  });
+  
+  // Show/hide panels
+  document.getElementById('locator-source-page').style.display = tab === 'page' ? '' : 'none';
+  document.getElementById('locator-source-codebase').style.display = tab === 'codebase' ? '' : 'none';
+  document.getElementById('locator-source-captures').style.display = tab === 'captures' ? '' : 'none';
+}
+
+function scanCodebase() {
+  const path = document.getElementById('codebase-path').value.trim();
+  const patternsStr = document.getElementById('codebase-patterns').value.trim();
+  
+  if (!path) {
+    toast('Enter codebase path', 'err');
+    return;
+  }
+  
+  const patterns = patternsStr.split(',').map(p => p.trim()).filter(p => p);
+  
+  document.getElementById('codebase-status').textContent = '⏳ Scanning...';
+  document.getElementById('codebase-locators-summary').style.display = 'none';
+  
+  socket.emit('scan_codebase', { path, patterns });
+}
+
+socket.on('codebase_scanned', (data) => {
+  const locators = data.locators || [];
+  const filesScanned = data.files_scanned || 0;
+  codebaseLocators = locators;
+  
+  document.getElementById('codebase-status').textContent = `✅ ${locators.length} locators from ${filesScanned} files`;
+  
+  const summary = document.getElementById('codebase-locators-summary');
+  summary.style.display = 'block';
+  
+  if (locators.length === 0) {
+    summary.innerHTML = '⚠️ No locators found. Check the path and file patterns.';
+    return;
+  }
+  
+  // Store for AI generation
+  window.codebaseLocators = locators;
+  
+  // Group by file
+  const byFile = {};
+  locators.forEach(loc => {
+    if (!byFile[loc.file]) byFile[loc.file] = [];
+    byFile[loc.file].push(loc);
+  });
+  
+  // Group by strategy
+  const byStrategy = {};
+  locators.forEach(loc => {
+    if (!byStrategy[loc.strategy]) byStrategy[loc.strategy] = 0;
+    byStrategy[loc.strategy]++;
+  });
+  
+  let html = `<div style="color:var(--green);margin-bottom:8px">✅ Found ${locators.length} locators in ${Object.keys(byFile).length} files</div>`;
+  
+  // Strategy breakdown
+  html += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">';
+  Object.entries(byStrategy).forEach(([strategy, count]) => {
+    const color = strategy.includes('test_id') ? '#2dd4a0' : strategy.includes('role') ? '#6366f1' : 'var(--muted)';
+    html += `<span class="badge" style="border-color:${color}40;color:${color}">${strategy}: ${count}</span>`;
+  });
+  html += '</div>';
+  
+  // Sample locators
+  html += '<div style="font-size:10px;max-height:100px;overflow-y:auto">';
+  locators.slice(0, 15).forEach(loc => {
+    const conf = loc.confidence === 'high' ? '🟢' : '🟡';
+    html += `<div style="padding:2px 0;border-bottom:1px solid var(--border)">
+      ${conf} <code style="color:var(--accent2)">${loc.locator.substring(0, 50)}</code>
+      <span style="color:var(--muted);font-size:9px">${loc.file}:${loc.line}</span>
+    </div>`;
+  });
+  if (locators.length > 15) {
+    html += `<div style="color:var(--muted);padding:4px 0">...and ${locators.length - 15} more</div>`;
+  }
+  html += '</div>';
+  
+  summary.innerHTML = html;
+  log(`✅ Found ${locators.length} locators in ${filesScanned} files`, 'ok');
+});
+
+// Update generateTestSteps to use active locator source
+const originalGenerateTestSteps = generateTestSteps;
+function generateTestSteps() {
+  const description = document.getElementById('test-description').value.trim();
+  const apiKey = localStorage.getItem('claude_api_key') || '';
+  
+  if (!description) {
+    toast('Enter a test description', 'err');
+    return;
+  }
+  
+  if (!apiKey) {
+    toast('Set your Claude API key in Config', 'err');
+    return;
+  }
+  
+  // Get locators based on active tab
+  let locatorsToUse = [];
+  
+  if (activeLocatorTab === 'page' && window.scannedLocators) {
+    locatorsToUse = window.scannedLocators;
+  } else if (activeLocatorTab === 'codebase' && window.codebaseLocators) {
+    // Convert codebase locators to the expected format
+    locatorsToUse = window.codebaseLocators.map(loc => ({
+      locator: { value: loc.locator },
+      element: {
+        tag: loc.strategy,
+        text: loc.value,
+        id: loc.value
+      },
+      file: loc.file,
+      line: loc.line
+    }));
+  } else if (activeLocatorTab === 'captures' && capturedLocators.length > 0) {
+    capturedLocators.forEach(screen => {
+      screen.elements.forEach(el => locatorsToUse.push(el));
+    });
+  }
+  
+  if (locatorsToUse.length === 0) {
+    toast('No locators available. Scan a page or codebase first.', 'err');
+    return;
+  }
+  
+  const creds = getCredentials();
+  
+  document.getElementById('btn-generate-steps').disabled = true;
+  document.getElementById('generation-status').textContent = '🤖 Generating...';
+  
+  socket.emit('generate_test_steps', {
+    description,
+    api_key: apiKey,
+    credentials: creds,
+    locators: locatorsToUse
+  });
+}
+
+function renderLocatorsPanel() {
+  const panel = document.getElementById('locators-panel');
+  const list = document.getElementById('locators-list');
+  const total = capturedLocators.reduce((sum, s) => sum + s.elements.length, 0);
+  
+  document.getElementById('locators-total-badge').textContent = total;
+  
+  if (total === 0) {
+    panel.style.display = 'none';
+    return;
+  }
+  
+  panel.style.display = 'block';
+  list.innerHTML = capturedLocators.map(screen => `
+    <div style="margin-bottom:12px">
+      <div style="font-size:11px;font-weight:600;color:var(--accent2);margin-bottom:6px">
+        📄 ${screen.screen} <span style="color:var(--muted);font-weight:400">(${screen.url})</span>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px">
+        ${screen.elements.map(el => {
+          // Handle locator being object or string
+          const locatorStr = typeof el.locator === 'object' ? (el.locator.value || JSON.stringify(el.locator)) : (el.locator || '');
+          const escapedLocator = locatorStr.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+          return `
+            <div class="el-pill" 
+                 style="cursor:pointer;transition:all .15s" 
+                 onclick="copyLocator('${escapedLocator}')"
+                 title="Click to copy: ${locatorStr.substring(0, 60)}">
+              <span style="color:var(--green)">${el.tag || el.element?.tag || 'el'}</span>${el.type || el.element?.type ? `[${el.type || el.element?.type}]` : ''}
+              ${el.text || el.element?.text ? ` "${(el.text || el.element?.text).substring(0, 15)}"` : ''}
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function copyLocator(locator) {
+  navigator.clipboard.writeText(locator);
+  toast(`Copied: ${locator.substring(0, 40)}...`, 'ok');
+}
+
+function addTestStepWithData(stepData) {
+  const type = stepData.type || 'click';
+  addTestStep(type);
+  
+  const row = document.querySelector('.test-step-row:last-child');
+  if (!row) return;
+  
+  if (stepData.selector) {
+    row.querySelector('.step-selector').value = stepData.selector;
+  }
+  if (stepData.value) {
+    row.querySelector('.step-value').value = stepData.value;
+  }
+  
+  // Add description as title
+  if (stepData.description) {
+    row.title = stepData.description;
+    // Add description label
+    const descSpan = document.createElement('span');
+    descSpan.style.cssText = 'font-size:10px;color:var(--muted);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+    descSpan.textContent = stepData.description;
+    descSpan.title = stepData.description;
+    row.insertBefore(descSpan, row.querySelector('.tc-del'));
+  }
+}
+
+// Load locators when switching to test runner panel
+const originalShowPanel = showPanel;
+showPanel = function(n) {
+  originalShowPanel(n);
+  if (n === 'testrunner') {
+    loadCapturedLocators();
+  }
+};
+
+// Also auto-load when captures change
+socket.on('screen_captured', () => {
+  // Refresh locators if on test runner panel
+  if (document.getElementById('panel-testrunner').classList.contains('active')) {
+    setTimeout(loadCapturedLocators, 500);
+  }
+});
+</script>
+</body>
+</html>

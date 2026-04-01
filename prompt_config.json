@@ -1,0 +1,159 @@
+{
+  "framework": {
+    "name": "HabitNu Web Automation",
+    "language": "Python",
+    "libraries": [
+      "playwright",
+      "pytest",
+      "allure"
+    ],
+    "base_url": "https://app-develop.habitnu.com/"
+  },
+  "imports": [
+    "import pytest",
+    "from pages.login_page import LoginPage",
+    "from pages.dashboard_page import DashboardPage",
+    "from pages.base_page import BasePage",
+    "from utils.config_manager import config",
+    "import allure",
+    "# Add other page imports as needed: from pages.xxx_page import XxxPage",
+    "# Add helpers if needed: from utils.helpers import delete_healthInputs"
+  ],
+  "locator_strategy": {
+    "rule": "ONLY use Playwright native locators. Never write XPath or CSS selector strings in generated code.",
+    "priority_1": "page.get_by_test_id('id') \u2014 use when data-testid is available",
+    "priority_2": "page.get_by_role('button', name='Sign in', exact=True) \u2014 semantic, resilient",
+    "priority_3": "page.get_by_placeholder('Enter email') / page.get_by_label('Email') \u2014 for inputs",
+    "priority_4": "page.get_by_text('Text', exact=True) \u2014 for visible text, headings, links",
+    "store_as": "ALL locators stored as self.xxx = page.get_by_xxx() in __init__",
+    "use_as": "Call directly: self.sign_in_btn.click(), self.email_input.fill(value)",
+    "in_tests": "self.login.sign_in_btn.click() or expect(self.login.sign_in_btn).to_be_visible()",
+    "repeated_elements": "Use .first or .nth(N) for tables: page.get_by_role('button', name='Actions').first",
+    "never": "Never write '//xpath' or 'css=selector' strings in generated page objects or tests"
+  },
+  "page_objects": {
+    "LoginPage": {
+      "file": "pages/login_page.py",
+      "inherits": "BasePage",
+      "note": "Use Playwright native locators only. The real LoginPage uses XPath internally but generated code must use Playwright locators.",
+      "playwright_locators": [
+        "# User portal",
+        "self.email_input      = page.get_by_placeholder('Enter your registered email')",
+        "self.password_input   = page.get_by_placeholder('Enter your password')",
+        "self.sign_in_btn      = page.get_by_role('button', name='Sign in')",
+        "# Coach portal",
+        "self.coach_email      = page.get_by_role('textbox', name='username').or_(page.get_by_placeholder('Username'))",
+        "self.coach_password   = page.get_by_placeholder('Password')",
+        "self.coach_sign_in    = page.get_by_role('button', name='Sign in')",
+        "# Error",
+        "self.error_msg        = page.get_by_text('Incorrect', exact=False)"
+      ],
+      "methods": [
+        "open(url) \u2014 calls self.go_to(url)",
+        "userPortal_login(email, password) \u2014 fills email, password, clicks Sign in",
+        "coachPortal_login(email, password) \u2014 fills coach email, password, clicks Sign in",
+        "physicianPortal_login(email, password) \u2014 fills physician email, password, clicks Log In",
+        "loginBy_skippingUI(url, auth_token, extended_url) \u2014 sets localStorage token, navigates",
+        "logoutBy_skippingUI(url) \u2014 clears localStorage, navigates to login",
+        "get_error() \u2014 returns error message text"
+      ]
+    },
+    "DashboardPage": {
+      "file": "pages/dashboard_page.py",
+      "playwright_locators": [
+        "self.progress_label = page.get_by_text('Weight Loss Progress')",
+        "self.profile_btn    = page.get_by_role('button', name='L')",
+        "self.home_link      = page.get_by_role('link', name='Home')"
+      ],
+      "methods": []
+    },
+    "UserListPage": {
+      "file": "pages/user_list_page.py",
+      "inherits": "BasePage",
+      "playwright_locators": [
+        "self.users_link    = page.get_by_role('link', name='Users', exact=True)",
+        "self.search_input  = page.locator('div.input-group input.form-control')",
+        "self.results_rows  = page.locator('table tbody tr')",
+        "self.actions_btn   = page.get_by_role('button', name='Actions').first"
+      ],
+      "methods": [
+        "navigate_to_users() \u2014 clicks users_link, waits for networkidle",
+        "search_user(term) \u2014 fills search_input, presses Enter, waits for networkidle",
+        "get_results_count() \u2014 returns self.results_rows.count()",
+        "is_no_results() \u2014 returns self.results_rows.count() == 0",
+        "click_first_actions() \u2014 clicks first Actions dropdown button"
+      ]
+    }
+  },
+  "base_page_methods": {
+    "go_to(url)": "self.page.goto(url)",
+    "click(locator)": "self.page.locator(locator).click() \u2014 locator is XPath or CSS string",
+    "type(locator, value)": "self.page.locator(locator).fill(value)",
+    "get_text(locator)": "self.page.locator(locator).inner_text()",
+    "get__inner_text(locator)": "self.page.locator(locator).text_content().strip()",
+    "wait_for_visible(locator)": "self.page.locator(locator).wait_for(state='visible')",
+    "assert_text(locator, expected)": "expect(self.page.locator(locator)).to_have_text(expected)",
+    "clear_input(locator)": "self.page.locator(locator).fill('')",
+    "soft_assert(condition, msg)": "appends to self._soft_failures if condition is False",
+    "scroll_to_element(locator)": "self.page.locator(locator).scroll_into_view_if_needed()",
+    "scroll_to_bottom()": "self.page.evaluate('window.scrollTo(0, document.body.scrollHeight)')",
+    "hover(locator)": "self.page.locator(locator).hover()",
+    "is_visible(locator)": "self.page.locator(locator).is_visible() \u2014 returns bool",
+    "accept_cookie()": "self.page.get_by_role('button', name='dismiss cookie message').click()"
+  },
+  "rules": {
+    "no_hard_waits": "NEVER use time.sleep(). Use wait_for_load_state, expect().to_be_visible(), wait_for_url instead.",
+    "no_invented_methods": "NEVER invent page object methods. Only use methods listed in page_objects config.",
+    "usage_in_test": "In test methods access locators via page object: self.login.sign_in_btn.click(). Use expect() for assertions.",
+    "no_open_method": "LoginPage has NO open() method. Use self.login.go_to(url) for navigation.",
+    "no_wait_for_page_load": "wait_for_page_load() does not exist. Use self.page.wait_for_load_state('domcontentloaded').",
+    "playwright_import": "Always include: from playwright.sync_api import Page, expect",
+    "type_annotations": "Always add class-level type annotations: page: Page, login: LoginPage etc.",
+    "url_assertions": "Use expect(self.page).to_have_url(re.compile(r'/path')) \u2014 never ** glob patterns",
+    "only_import_used": "Only import page objects that are actually used in the test file",
+    "url_regex_must_match_actual": "When writing URL assertions, use the EXACT path from the captured URL. If captured URL is '/app/cohort/automationForLearn/participations' then assert re.compile(r'/participations') NOT re.compile(r'/cohort/.*/dashboard'). Never guess URL patterns.",
+    "strict_mode_table_rows": "When a page has a table/list with repeated elements (e.g. 8 'Actions' buttons, one per row), NEVER use get_by_role/get_by_text alone \u2014 it will resolve to multiple elements and throw strict mode violation. Instead scope to a specific row: page.locator('tr').nth(0).get_by_role('button', name='Actions') OR use .first for the first occurrence: page.get_by_role('button', name='Actions').first",
+    "repeated_elements_pattern": "For tables with repeated buttons per row, define the locator with .first or .nth(N) or scope by row: self.first_actions_btn = page.get_by_role('button', name='Actions').first. For row-specific actions, create a method that takes row index: def click_actions_for_row(self, row_index): self.page.locator('tr').nth(row_index).get_by_role('button', name='Actions').click()",
+    "login_url_from_config": "For coach portal use config.get_coaches_url() NOT config.get_web_url(). Check which portal is being tested and use the correct config method.",
+    "no_dashboard_locators_without_capture": "DashboardPage only has locators that were explicitly captured. Do not add self.home_link, self.users_link or any other locator unless it appears in the captured element data provided.",
+    "priority_not_order": "Always use @pytest.mark.priority(N) not @pytest.mark.order(N)",
+    "allure_fstring": "Always use f-string for allure title: @allure.title(f'Given I am...')",
+    "login_open_method": "LoginPage HAS an open(url) method used in setup_class: cls.login.open(cls.user_webUrl)",
+    "direct_page_click": "For class-level locator constants use self.page.click(XxxPage.LOCATOR_CONSTANT) directly \u2014 no need for basePage wrapper",
+    "no_order_decorator": "NEVER use @pytest.mark.order \u2014 use @pytest.mark.priority only",
+    "mandatory_structure": "CRITICAL \u2014 The file MUST start with the fixture then the class. NEVER use setup_method. NEVER initialize page objects in setup_method. NEVER create a class without the @pytest.fixture above it. The fixture is: @pytest.fixture(scope='class', autouse=True) def setup_logged_in_page(request, logged_in_page). The class decorator is: @pytest.mark.usefixtures('setup_logged_in_page'). This is the ONLY accepted pattern \u2014 any deviation is wrong.",
+    "url_after_coach_login": "After coachPortal_login the URL contains /app/cohort/{name}/dashboard. Use: expect(self.page).to_have_url(re.compile(r'/app/cohort')) NOT re.compile(r'/dashboard') alone.",
+    "no_invented_config_methods": "ONLY use config methods listed in config_manager section. NEVER use get_coach_email(), get_coach_password() \u2014 they do not exist.",
+    "playwright_locators_only": "ONLY use Playwright native locators: get_by_role, get_by_placeholder, get_by_label, get_by_text, get_by_test_id. NEVER write XPath strings like //button[@name='x'] or CSS strings like button.classname in generated code. All locators defined as self.xxx = page.get_by_xxx() in __init__.",
+    "strict_mode_fix": "If an element appears multiple times (e.g. Actions button in a table), always use .first or .nth(N): page.get_by_role('button', name='Actions').first. Never use a bare locator that resolves to multiple elements.",
+    "search_without_button": "Some search inputs have no submit button \u2014 search triggers on Enter key. When captured element is an input with no adjacent button, use: self.search_input.fill(term) then self.search_input.press('Enter'). Never invent a self.search_btn if no button was captured.",
+    "css_class_locator": "When an element has no aria-label, placeholder, role or testid, use a CSS class locator as last resort: page.locator('input.form-control'). Scope to a parent container to avoid ambiguity: page.locator('div.input-group input.form-control').",
+    "empty_table_assertion": "To assert zero search results, use: page.locator('table tbody tr').count() == 0. NEVER use get_by_text('user').count() or any text-based count \u2014 that matches nav items and other text on the page, not table rows. Always scope assertions to 'table tbody tr' for row counts.",
+    "no_text_count_for_results": "NEVER assert search result count using get_by_text().count(). Text locators match ALL occurrences on the page including nav, headers, labels. Use table row count: page.locator('table tbody tr').count() for result assertions.",
+    "no_invented_page_methods": "NEVER invent page object methods that are not listed in the page_objects config. accept_cookies_if_visible(), dismiss_cookie(), handle_popup() \u2014 none of these exist. Only use methods explicitly listed under each page object's 'methods' key. If cookie handling is needed, use: self.page.get_by_role('button', name='Accept').click() directly in setup_class.",
+    "no_config_dict_access": "Config object has NO .get() method and is NOT a dict. NEVER write: config.get('coach', 'email') or config['key']. ALWAYS use explicit methods: config.get_login_credentials(), config.get_coaches_url() etc."
+  },
+  "page_object_template": "from pages.base_page import BasePage\nfrom playwright.sync_api import Page, expect\n\nclass XxxPage(BasePage):\n    def __init__(self, page: Page):\n        super().__init__(page)\n        self.some_btn     = page.get_by_role(\"button\", name=\"Button Name\", exact=True)\n        self.some_input   = page.get_by_placeholder(\"Enter value\")\n        self.some_link    = page.get_by_role(\"link\", name=\"Link Name\")\n        self.some_heading = page.get_by_role(\"heading\", name=\"Page Title\")\n        self.some_text    = page.get_by_text(\"Visible text\", exact=True)\n        # For repeated elements in tables:\n        self.first_action = page.get_by_role(\"button\", name=\"Actions\").first\n\n    def navigate_to_xxx(self):\n        self.some_link.click()\n        self.page.wait_for_load_state(\"networkidle\")",
+  "test_method_template": "    @pytest.mark.priority(N)\n    @allure.title(f\"Given I am <context>, when I <action>, then I should <expected>\")\n    def test_xxx(self):\n        self.xxx_page.some_btn.click()\n        self.page.wait_for_load_state(\"networkidle\")\n        expect(self.xxx_page.some_heading).to_be_visible()\n        expect(self.page).to_have_url(re.compile(r\"/expected/path\"))",
+  "fixture_template": "@pytest.fixture(scope=\"class\", autouse=True)\ndef setup_logged_in_page(request, logged_in_page):\n    request.cls.page      = logged_in_page\n    request.cls.basePage  = BasePage(logged_in_page)\n    request.cls.login     = LoginPage(logged_in_page)\n    request.cls.xxx_page  = XxxPage(logged_in_page)",
+  "setup_class_template": "    @classmethod\n    def setup_class(cls):\n        cls.user_webUrl       = config.get_web_url()\n        cls.login_credentials = config.get_login_credentials()\n        # Optional cleanup before test run:\n        # delete_healthInputs(cls, \"mongo_id_here\")\n        cls.login.open(cls.user_webUrl)\n        cls.login.userPortal_login(\n            cls.login_credentials[\"webUsername\"],\n            cls.login_credentials[\"webUserPassword\"]\n        )\n        cls.basePage.get_text(DashboardPage.WEIGHTLOSS_PROGRESS_LABEL)",
+  "structure_template": "MANDATORY STRUCTURE \u2014 follow this exact skeleton, fill in the rest yourself:\n\n@pytest.fixture(scope=\"class\", autouse=True)\ndef setup_logged_in_page(request, logged_in_page):\n    request.cls.page     = logged_in_page\n    request.cls.basePage = BasePage(logged_in_page)\n    request.cls.login    = LoginPage(logged_in_page)\n    # add other page objects here based on what the test needs:\n    # request.cls.xxx_page = XxxPage(logged_in_page)\n\n@pytest.mark.usefixtures(\"setup_logged_in_page\")\nclass TestXxx():\n    @classmethod\n    def setup_class(cls):\n        # your setup here\n\n    # your test methods here\n\nRULES for this structure:\n1. The fixture function name must always be: setup_logged_in_page\n2. The fixture must always accept (request, logged_in_page) \u2014 never change these params\n3. request.cls.page, request.cls.basePage, request.cls.login are ALWAYS present\n4. Add other page objects to fixture based on what screens were captured\n5. Class name follows: TestXxx \u2014 derive from scenario name\n6. setup_class is always @classmethod with cls parameter\n7. Everything else (imports, test methods, locators, assertions) \u2014 use your best judgment",
+  "config_manager": {
+    "class": "Config \u2014 imported as: from utils.config_manager import config",
+    "real_methods": [
+      "config.get_web_url()            \u2014 user portal URL (from config.yaml web_url)",
+      "config.get_coaches_url()        \u2014 coach portal URL (from config.yaml coach_url)",
+      "config.get_physician_url()      \u2014 physician portal URL",
+      "config.get_base_url()           \u2014 base API URL",
+      "config.get_login_credentials()  \u2014 returns dict from config.yaml login section",
+      "config.get_auth_token()         \u2014 returns stored auth token from runtime.yaml",
+      "config.set_auth_token(token)    \u2014 saves auth token to runtime.yaml",
+      "config.get_monogo_uri()         \u2014 MongoDB URI",
+      "config.get_DB_name()            \u2014 database name",
+      "config.get_stripeKey()          \u2014 Stripe API key",
+      "config.get_ai_url()             \u2014 AI service URL"
+    ],
+    "warning": "NEVER use config.get('section', 'key') \u2014 Config has NO .get() method. NEVER use config['key'] \u2014 Config is not a dict. ONLY call the explicit methods listed above. For credentials use: creds = config.get_login_credentials() then creds['webUsername'], creds['webUserPassword']. There are NO coach-specific credential methods \u2014 use get_login_credentials() for all portals."
+  },
+  "base_page_notes": "BasePage methods accept XPath/CSS strings internally, but generated code should NOT use them. Instead use Playwright locators directly: self.email_input.fill(value) instead of self.type(LoginPage.EMAIL_INPUT, value). BasePage.go_to(url) is still used for navigation. In test methods, access page object locators via: self.login.email_input, self.login.sign_in_btn etc."
+}

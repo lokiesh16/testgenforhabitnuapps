@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 300px; background: #0a0a0f; color: #e8e8f0;
+    font-family: 'IBM Plex Mono', monospace; padding: 16px;
+  }
+  .header { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+  .logo { font-size: 13px; font-weight: 700; color: #b09aff; letter-spacing: -0.3px; }
+  .logo span { color: #2dd4a0; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #2a2a3a; margin-left: auto; }
+  .dot.on { background: #2dd4a0; box-shadow: 0 0 6px #2dd4a0; }
+
+  .status { font-size: 11px; color: #888899; margin-bottom: 14px; padding: 8px 10px;
+    background: #111118; border-radius: 6px; border: 1px solid #2a2a3a; }
+
+  input {
+    width: 100%; background: #111118; border: 1px solid #2a2a3a;
+    border-radius: 6px; padding: 8px 10px; color: #e8e8f0;
+    font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+    margin-bottom: 10px;
+  }
+  input:focus { outline: none; border-color: #7c6aff; }
+  input::placeholder { color: #555566; }
+
+  button {
+    width: 100%; padding: 9px; border-radius: 6px; border: none;
+    font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+    font-weight: 600; cursor: pointer; transition: all .15s;
+  }
+  .btn-capture { background: #7c6aff; color: #fff; margin-bottom: 8px; }
+  .btn-capture:hover { background: #b09aff; }
+  .btn-capture:disabled { opacity: .4; cursor: default; }
+  .btn-open { background: transparent; color: #888899; border: 1px solid #2a2a3a; }
+  .btn-open:hover { color: #e8e8f0; border-color: #3a3a50; }
+
+  .feedback { font-size: 11px; margin-top: 10px; padding: 7px 10px;
+    border-radius: 5px; display: none; }
+  .feedback.ok  { background: #2dd4a022; border: 1px solid #2dd4a044; color: #2dd4a0; display: block; }
+  .feedback.err { background: #ff5f6d22; border: 1px solid #ff5f6d44; color: #ff5f6d; display: block; }
+
+  .recent { margin-top: 12px; }
+  .recent-title { font-size: 10px; color: #555566; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+  .recent-item { font-size: 11px; color: #888899; padding: 4px 0; border-bottom: 1px solid #1a1a24; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="logo">habitnu <span>✦</span> testgen</div>
+  <div class="dot" id="dot"></div>
+</div>
+
+<div class="status" id="status">Checking connection to localhost:5001...</div>
+
+<input type="text" id="screen-name" placeholder="Name this screen (e.g. login_page)">
+<button class="btn-capture" id="btn-capture" onclick="captureScreen()">◉ Capture this screen</button>
+<button class="btn-open" onclick="openTestGen()">Open TestGen →</button>
+
+<div class="feedback" id="feedback"></div>
+
+<div class="recent" id="recent-wrap" style="display:none">
+  <div class="recent-title">Recent captures</div>
+  <div id="recent-list"></div>
+</div>
+
+<script src="popup.js"></script>
+</body>
+</html>
