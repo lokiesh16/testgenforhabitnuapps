@@ -18,7 +18,7 @@ from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 
 app = Flask(__name__, static_folder=".")
-CORS(app)
+CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=False)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 TARGET_URL         = "https://app.habitnu.com"
@@ -987,8 +987,16 @@ Return ONLY a valid JSON array, no explanation. Example:
 
 # ── Extension capture ─────────────────────────────────────────────────────────
 
-@app.route("/api/extension-capture", methods=["POST"])
+@app.route("/api/extension-capture", methods=["POST", "OPTIONS"])
 def extension_capture():
+    # Handle CORS preflight
+    if request.method == "OPTIONS":
+        resp = app.make_default_options_response()
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        resp.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        return resp
+
     data     = request.json
     name     = data.get("name", "screen").strip() or "screen"
     snapshot = data.get("snapshot", {})
@@ -1005,7 +1013,9 @@ def extension_capture():
         "preview": capture["preview"],
     })
     socketio.emit("log", {"msg": "[Extension] Captured: " + name})
-    return jsonify({"success": True, "index": capture["index"]})
+    resp = jsonify({"success": True, "index": capture["index"]})
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    return resp
 
 
 # ── Config endpoints ──────────────────────────────────────────────────────────
@@ -1031,12 +1041,14 @@ def index():
 
 @app.route("/api/status")
 def status():
-    return jsonify({
+    resp = jsonify({
         "playwright_available": PLAYWRIGHT_AVAILABLE,
         "connected":            session["connected"],
         "captures":             len(session["captures"]),
         "target_url":           TARGET_URL,
     })
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    return resp
 
 
 @app.route("/api/captures/<int:idx>")

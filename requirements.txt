@@ -1,6 +1,6 @@
 flask
 flask-cors
 flask-socketio
-eventlet
+gevent
 playwright
 gunicorn
